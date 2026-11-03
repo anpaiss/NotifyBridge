@@ -36,7 +36,7 @@ class MainActivity : AppCompatActivity() {
         col.addView(TextView(this).apply {
             textSize = 18f
             setPadding(0, 48, 0, 8)
-            text = "Sent to the Karoo\nAn app appears here after its first notification, switched off."
+            text = "Sent to the Karoo\nAn app, and on WhatsApp a person or group, appears here after its first message, switched off."
         })
         apps = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(apps)
@@ -59,8 +59,16 @@ class MainActivity : AppCompatActivity() {
         }.sortedBy { it.second.lowercase() }.forEach { (pkg, label) ->
             apps.addView(Switch(this).apply {
                 text = label; textSize = 18f; isChecked = filter.allowed(pkg)
-                setOnCheckedChangeListener { _, on -> filter.setAllowed(pkg, on) }
+                setOnCheckedChangeListener { _, on -> filter.setAllowed(pkg, on); refresh() }
             })
+            // The people and groups of WhatsApp, indented under it while the app is on
+            if (filter.allowed(pkg)) filter.chats(pkg).sortedBy { it.name.lowercase() }.forEach { c ->
+                apps.addView(Switch(this).apply {
+                    text = if (c.group) "${c.name} · group" else c.name
+                    textSize = 16f; setPadding(64, 0, 0, 0); isChecked = filter.chatAllowed(c.key)
+                    setOnCheckedChangeListener { _, on -> filter.setChatAllowed(c.key, on) }
+                })
+            }
         }
     }
 }
