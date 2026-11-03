@@ -41,6 +41,7 @@ class BridgeExtension : KarooExtension("notifybridge", "0.1") {
 
     private lateinit var karoo: KarooSystemService
     private lateinit var manager: BluetoothManager
+    private lateinit var popup: MessagePopup
     private val main = Handler(Looper.getMainLooper())
     private var gatt: BluetoothGatt? = null
     private var scanning = false
@@ -52,12 +53,14 @@ class BridgeExtension : KarooExtension("notifybridge", "0.1") {
         karoo = KarooSystemService(applicationContext)
         karoo.connect { ok -> if (ok) karoo.addConsumer(RideState.Params, { _ -> }, {}) { s: RideState -> riding = s !is RideState.Idle } }
         manager = getSystemService(BluetoothManager::class.java)
+        popup = MessagePopup(this)
         main.postDelayed({ startScan() }, 5_000)
     }
 
     override fun onDestroy() {
         stopScan()
         runCatching { gatt?.close() }
+        popup.remove()
         karoo.disconnect()
         super.onDestroy()
     }
@@ -127,19 +130,30 @@ class BridgeExtension : KarooExtension("notifybridge", "0.1") {
 
         override fun onCharacteristicChanged(g: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray) = onMessage(value)
 
+        // The popup takes the colour of the app it comes from, orange for the others
+        private fun appColor(app: String) = when {
+            app.contains("whatsapp", true) -> R.color.alert_whatsapp
+            app.contains("telegram", true) -> R.color.alert_telegram
+            else -> R.color.alert_bg
+        }
+
         private fun onMessage(value: ByteArray) {
             val j = runCatching { JSONObject(value.decodeToString()) }.getOrNull() ?: return
             count++
             val app = j.optString("app"); val title = j.optString("title"); val text = j.optString("text")
             Log.i(TAG, "message #$count from $app (${value.size} B)")
-            // Riding: a popup on the ride screen. Otherwise InRideAlert is not shown, the Karoo's notification centre is
-            if (riding) karoo.dispatch(InRideAlert(
+            // The message is the large line, the app below
+            val message = listOf(title, text).filter { it.isNotEmpty() }.joinToString(": ").ifEmpty { app }
+            // Riding: our popup at the bottom, or the Karoo's alert at the top without the overlay permission.
+            // Otherwise InRideAlert is not shown, the Karoo's notification centre is
+            if (riding && popup.canShow()) popup.show(message, app, appColor(app))
+            else if (riding) karoo.dispatch(InRideAlert(
                 id = "notifybridge-$count",
                 icon = R.drawable.ic_bridge,
-                title = if (title.isNotEmpty()) "$app: $title" else app,
-                detail = text,
+                title = message,
+                detail = app,
                 autoDismissMs = 10_000,
-                backgroundColor = R.color.alert_bg,
+                backgroundColor = appColor(app),
                 textColor = R.color.alert_text,
             )) else karoo.dispatch(SystemNotification(
                 id = "notifybridge-$count",

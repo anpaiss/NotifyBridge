@@ -1,0 +1,77 @@
+package com.anpaiss.notifybridge.karoo
+
+import android.content.Context
+import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
+import android.widget.LinearLayout
+import android.widget.TextView
+
+/**
+ * The message as an overlay at the bottom of the ride screen, in large text and
+ * in the colour of the app it comes from. The Karoo's own InRideAlert cannot be
+ * moved or resized, and other overlays (AxsRatio) can cover it at the top.
+ * Same overlay technique as PoiAhead and BetterETA. A tap closes it.
+ */
+class MessagePopup(private val context: Context) {
+
+    private val main = Handler(Looper.getMainLooper())
+    private val wm = context.getSystemService(WindowManager::class.java)
+    private var current: View? = null
+
+    fun canShow(): Boolean = Settings.canDrawOverlays(context)
+
+    /** Callable from any thread. */
+    fun show(message: String, app: String, color: Int) = main.post {
+        remove()
+        val big = TextView(context).apply {
+            text = message
+            textSize = 24f
+            setTypeface(typeface, Typeface.BOLD)
+            setTextColor(0xFFFFFFFF.toInt())
+            maxLines = 4
+            setShadowLayer(dp(2f), 0f, dp(1f), 0xB3000000.toInt())
+        }
+        val small = TextView(context).apply {
+            text = app
+            textSize = 16f
+            setTextColor(0xFFFFFFFF.toInt())
+        }
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            val pad = dp(12f).toInt()
+            setPadding(pad, pad, pad, pad)
+            background = GradientDrawable().apply { cornerRadius = dp(10f); setColor(context.getColor(color)) }
+            addView(big)
+            addView(small)
+            setOnClickListener { remove() }
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            // Touches outside the popup go on to the ride screen
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = dp(16f).toInt()
+            horizontalMargin = 0.03f
+        }
+        // For now no timeout: it stays until tapped
+        runCatching { wm.addView(root, params) }.onSuccess { current = root }
+    }
+
+    fun remove() {
+        current?.let { runCatching { wm.removeView(it) } }
+        current = null
+    }
+
+    private fun dp(v: Float) = v * context.resources.displayMetrics.density
+}
