@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">NotifyBridge</string>
+    <color name="alert_bg">#FF5823</color>
+    <color name="alert_text">#FFFFFF</color>
+</resources>
