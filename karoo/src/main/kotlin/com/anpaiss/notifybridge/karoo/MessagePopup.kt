@@ -17,9 +17,13 @@ import android.widget.TextView
  * The message as an overlay at the bottom of the ride screen, in large text and
  * in the colour of the app it comes from. The Karoo's own InRideAlert cannot be
  * moved or resized, and other overlays (AxsRatio) can cover it at the top.
- * Same overlay technique as PoiAhead and BetterETA. A tap closes it.
+ * Same overlay technique as PoiAhead and BetterETA. A tap closes it, or 10 s.
  */
 class MessagePopup(private val context: Context) {
+
+    companion object {
+        private const val AUTO_DISMISS_MS = 10_000L
+    }
 
     private val main = Handler(Looper.getMainLooper())
     private val wm = context.getSystemService(WindowManager::class.java)
@@ -64,8 +68,10 @@ class MessagePopup(private val context: Context) {
             y = dp(16f).toInt()
             horizontalMargin = 0.03f
         }
-        // For now no timeout: it stays until tapped
-        runCatching { wm.addView(root, params) }.onSuccess { current = root }
+        runCatching { wm.addView(root, params) }.onSuccess {
+            current = root
+            main.postDelayed({ if (current === root) remove() }, AUTO_DISMISS_MS)
+        }
     }
 
     fun remove() {
