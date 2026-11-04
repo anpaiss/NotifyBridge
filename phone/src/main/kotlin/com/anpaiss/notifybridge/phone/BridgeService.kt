@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
@@ -17,8 +18,10 @@ import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.os.Handler
 import android.os.IBinder
@@ -68,6 +71,21 @@ class BridgeService : Service() {
         }
     }
 
+    // Bluetooth switched off closes the server and the advertising: open them again when it comes back
+    private val btState = object : BroadcastReceiver() {
+        override fun onReceive(c: Context, i: Intent) {
+            when (i.getIntExtra(BluetoothAdapter.EXTRA_STATE, -1)) {
+                BluetoothAdapter.STATE_OFF -> {
+                    FileLog.i("Bluetooth off")
+                    runCatching { server?.close() }; server = null
+                    subscribers.clear(); mtu.clear()
+                    status = "Bluetooth off"
+                }
+                BluetoothAdapter.STATE_ON -> { FileLog.i("Bluetooth on"); openServer(); advertise() }
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -85,6 +103,7 @@ class BridgeService : Service() {
         manager = getSystemService(BluetoothManager::class.java)
         openServer()
         advertise()
+        registerReceiver(btState, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
         instance = this
         main.postDelayed(heartbeat, 15 * 60_000L)
     }
@@ -95,6 +114,7 @@ class BridgeService : Service() {
         instance = null
         status = "stopped"
         main.removeCallbacks(heartbeat)
+        runCatching { unregisterReceiver(btState) }
         FileLog.i("bridge stopped")
         runCatching { manager.adapter.bluetoothLeAdvertiser?.stopAdvertising(advCallback) }
         runCatching { server?.close() }
@@ -134,6 +154,9 @@ class BridgeService : Service() {
         override fun onConnectionStateChange(device: BluetoothDevice, st: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 FileLog.i("connected: ${device.address}")
+                // The server takes the link as its own: without it the stack sees no app on a link the
+                // Karoo opened, and may close it a few seconds later (status 19 on the Karoo)
+                server?.connect(device, false)
             } else {
                 subscribers.remove(device.address); mtu.remove(device.address)
                 FileLog.i("disconnected: ${device.address}")

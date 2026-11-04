@@ -49,6 +49,8 @@ class BridgeExtension : KarooExtension("notifybridge", "0.1") {
     private val main = Handler(Looper.getMainLooper())
     private var gatt: BluetoothGatt? = null
     private var scanning = false
+    private var scanFast = false
+    private var lostAt = 0L
     private var count = 0
     private var checkPending = false
     @Volatile private var riding = false
@@ -90,18 +92,28 @@ class BridgeExtension : KarooExtension("notifybridge", "0.1") {
         super.onDestroy()
     }
 
+    // The first 2 min without the phone a full scan, to get it back at once; then the low power one,
+    // less than half the radio time: a phone left at home or out of range costs little, and is found in seconds
     private fun startScan() {
         if (scanning || gatt != null) return
         val s = manager.adapter?.bluetoothLeScanner ?: run { FileLog.w("no scanner"); main.postDelayed({ startScan() }, 30_000); return }
+        if (lostAt == 0L) lostAt = System.currentTimeMillis()
+        scanFast = System.currentTimeMillis() - lostAt < 2 * 60_000L
         val filter = ScanFilter.Builder().setServiceUuid(ParcelUuid(SERVICE)).build()
-        val settings = ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_BALANCED).build()
+        val settings = ScanSettings.Builder()
+            .setScanMode(if (scanFast) ScanSettings.SCAN_MODE_BALANCED else ScanSettings.SCAN_MODE_LOW_POWER).build()
         runCatching { s.startScan(listOf(filter), settings, scanCallback) }
             .onFailure { FileLog.w("scan failed: ${it.message}"); main.postDelayed({ startScan() }, 30_000); return }
         scanning = true
-        FileLog.i("looking for the phone")
+        FileLog.i("looking for the phone${if (scanFast) "" else " (low power)"}")
+        main.removeCallbacks(slowDown)
+        if (scanFast) main.postDelayed(slowDown, lostAt + 2 * 60_000L - System.currentTimeMillis())
     }
 
+    private val slowDown = Runnable { if (scanning && scanFast) { stopScan(); startScan() } }
+
     private fun stopScan() {
+        main.removeCallbacks(slowDown)
         if (scanning) runCatching { manager.adapter?.bluetoothLeScanner?.stopScan(scanCallback) }
         scanning = false
     }
@@ -160,7 +172,7 @@ class BridgeExtension : KarooExtension("notifybridge", "0.1") {
             @Suppress("DEPRECATION")
             g.writeDescriptor(d)
             FileLog.i("subscribed")
-            main.post { main.removeCallbacks(check); checkPending = false; main.postDelayed(check, 60_000) }
+            main.post { lostAt = 0L; main.removeCallbacks(check); checkPending = false; main.postDelayed(check, 60_000) }
         }
 
         // Android 12 calls this form; the (g, ch, value, status) one only exists from Android 13
