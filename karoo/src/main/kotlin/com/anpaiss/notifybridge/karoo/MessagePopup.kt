@@ -74,6 +74,40 @@ class MessagePopup(private val context: Context) {
         }
     }
 
+    // The alarm is a view of its own: a message arriving meanwhile must not close it
+    private var alarm: View? = null
+
+    /** The whole screen red until a tap; then [onClose]. Callable from any thread. */
+    fun alarm(title: String, detail: String, onClose: () -> Unit) = main.post {
+        alarm?.let { runCatching { wm.removeView(it) } }
+        val root = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            val pad = dp(16f).toInt()
+            setPadding(pad, pad, pad, pad)
+            setBackgroundColor(0xFFD50000.toInt())
+            addView(TextView(context).apply {
+                text = title; textSize = 34f; gravity = Gravity.CENTER
+                setTypeface(typeface, Typeface.BOLD); setTextColor(0xFFFFFFFF.toInt())
+            })
+            addView(TextView(context).apply {
+                text = detail + "\n\nTap to close"; textSize = 20f; gravity = Gravity.CENTER
+                setTextColor(0xFFFFFFFF.toInt()); setPadding(0, pad, 0, 0)
+            })
+            setOnClickListener {
+                if (alarm === this) { runCatching { wm.removeView(this) }; alarm = null; onClose() }
+            }
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.OPAQUE,
+        )
+        runCatching { wm.addView(root, params) }.onSuccess { alarm = root }
+    }
+
     fun remove() {
         current?.let { runCatching { wm.removeView(it) } }
         current = null

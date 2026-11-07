@@ -3,14 +3,20 @@ package com.anpaiss.notifybridge.karoo
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
+import android.content.Context
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.LinearLayout
 import android.widget.TextView
 
-/** Only one setting: the overlay permission that lets the popup sit at the bottom of the ride screen. */
+/** The overlay permission that lets the popup sit at the bottom of the ride screen, and the inReach check. */
 class MainActivity : Activity() {
+
+    companion object {
+        const val INREACH_CHECK = "inreach_check"
+    }
 
     private lateinit var status: TextView
 
@@ -29,6 +35,14 @@ class MainActivity : Activity() {
             setPadding(pad, pad, pad, pad)
             addView(status)
             addView(grant)
+            addView(CheckBox(this@MainActivity).apply {
+                text = "inReach check: a notice 1–2 min after the start when your Garmin inReach is neither " +
+                    "connected to the phone nor seen by the Karoo"
+                textSize = 16f
+                val prefs = getSharedPreferences("bridge", Context.MODE_PRIVATE)
+                isChecked = prefs.getBoolean(INREACH_CHECK, false)
+                setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean(INREACH_CHECK, on).apply() }
+            })
         })
     }
 

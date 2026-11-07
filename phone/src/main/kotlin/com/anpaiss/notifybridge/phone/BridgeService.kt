@@ -154,9 +154,6 @@ class BridgeService : Service() {
         override fun onConnectionStateChange(device: BluetoothDevice, st: Int, newState: Int) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 FileLog.i("connected: ${device.address}")
-                // The server takes the link as its own: without it the stack sees no app on a link the
-                // Karoo opened, and may close it a few seconds later (status 19 on the Karoo)
-                server?.connect(device, false)
             } else {
                 subscribers.remove(device.address); mtu.remove(device.address)
                 FileLog.i("disconnected: ${device.address}")
@@ -164,7 +161,13 @@ class BridgeService : Service() {
             status = "advertising, ${subscribers.size} Karoo subscribed"
         }
 
-        override fun onMtuChanged(device: BluetoothDevice, m: Int) { mtu[device.address] = m; FileLog.i("mtu $m from ${device.address}") }
+        // The Karoo asks the MTU first thing; the phone's own links (inReach, watch) do not come here.
+        // The server takes the link as its own: without it the stack sees no app on a link the
+        // Karoo opened, and may close it a few seconds later (status 19 on the Karoo)
+        override fun onMtuChanged(device: BluetoothDevice, m: Int) {
+            mtu[device.address] = m; FileLog.i("mtu $m from ${device.address}")
+            server?.connect(device, false)
+        }
 
         override fun onDescriptorWriteRequest(device: BluetoothDevice, requestId: Int, descriptor: BluetoothGattDescriptor,
                                               preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?) {
@@ -179,9 +182,19 @@ class BridgeService : Service() {
 
         // The Karoo's periodic check: is it still subscribed here? After this service restarts it no longer is
         override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic) {
-            val sub = JSONObject().put("subscribed", subscribers.containsKey(device.address)).toString()
-            server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, sub.toByteArray())
+            val sub = JSONObject().put("subscribed", subscribers.containsKey(device.address))
+            inReach()?.let { (address, up) -> sub.put("ir", address).put("irUp", up) }
+            server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, sub.toString().toByteArray())
+            return
         }
+    }
+
+    // The Garmin inReach paired with this phone, and whether its app (Messenger, Explore) holds the link now:
+    // connected to the phone it stops advertising, so the Karoo cannot see it by itself
+    private fun inReach(): Pair<String, Boolean>? {
+        val ir = runCatching { manager.adapter.bondedDevices.firstOrNull { it.name?.startsWith("inReach", true) == true } }.getOrNull() ?: return null
+        val up = runCatching { manager.getConnectedDevices(BluetoothProfile.GATT).any { it.address == ir.address } }.getOrDefault(false)
+        return ir.address to up
     }
 
     fun notifyAll(json: JSONObject) {
