@@ -40,6 +40,7 @@ class MessagePopup(private val context: Context) {
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
             maxLines = 4
+            ellipsize = android.text.TextUtils.TruncateAt.END   // a longer message ends in "…" instead of mid-sentence
             setShadowLayer(dp(2f), 0f, dp(1f), 0xB3000000.toInt())
         }
         val small = TextView(context).apply {

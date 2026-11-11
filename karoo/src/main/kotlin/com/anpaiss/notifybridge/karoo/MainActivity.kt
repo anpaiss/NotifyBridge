@@ -35,6 +35,18 @@ class MainActivity : Activity() {
             setPadding(pad, pad, pad, pad)
             addView(status)
             addView(grant)
+            // The real popup with a made-up message, as every extension with a popup has; no sound, nothing is sent
+            addView(Button(this@MainActivity).apply {
+                text = "TEST POPUP (shows in 3 s)"
+                setOnClickListener {
+                    if (!Settings.canDrawOverlays(this@MainActivity)) return@setOnClickListener
+                    val popup = MessagePopup(applicationContext)
+                    postDelayed({
+                        popup.show("Sample sender: This is a test message, long enough to fill more than one line of the popup",
+                            "WhatsApp (test)", R.color.alert_whatsapp)
+                    }, 3_000L)
+                }
+            })
             addView(CheckBox(this@MainActivity).apply {
                 text = "inReach check: a notice 1–2 min after the start when your Garmin inReach is neither " +
                     "connected to the phone nor seen by the Karoo"
