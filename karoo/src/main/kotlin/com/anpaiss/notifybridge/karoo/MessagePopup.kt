@@ -29,7 +29,9 @@ class MessagePopup(private val context: Context) {
     companion object {
         private const val AUTO_DISMISS_MS = 10_000L
         private const val MESSAGE_MAX_WAIT_MS = 30_000L
-        private const val ALARM_HOLD_MS = 10 * 60_000L   // closed only by a tap: as long as its siren
+        // The alarm keeps the screen to itself for 1 min, then the other popups may show over it (it stays
+        // under them until a tap, siren included): its siren cannot go unheard, the MTA must not wait 10 min (14/11)
+        private const val ALARM_HOLD_MS = 60_000L
     }
 
     private val main = Handler(Looper.getMainLooper())
