@@ -23,4 +23,6 @@ kotlin {
 dependencies {
     implementation(libs.hammerhead.karoo.ext)
     implementation(libs.androidx.core.ktx)
+
+    testImplementation(libs.junit)
 }
