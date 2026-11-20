@@ -23,12 +23,17 @@ import io.hammerhead.karooext.models.PlayBeepPattern
 import io.hammerhead.karooext.models.RideState
 import io.hammerhead.karooext.models.SystemNotification
 import org.json.JSONObject
+import android.util.Base64
+import java.security.KeyPair
 import java.util.UUID
 
 /**
- * Test of the Karoo side: finds the phone by the service it advertises (the
- * phone's address changes, the service does not), subscribes to its message
- * characteristic and shows each message as a Karoo in-ride alert.
+ * The Karoo side: finds the phone by the service it advertises (the phone's
+ * address changes, the service does not), subscribes to its message
+ * characteristic and shows each message, opened with the key of the pairing
+ * ([PairCrypto]), as our popup or a Karoo alert. After each connection it tells
+ * the phone which key it holds (hello). GATT operations go one at a time
+ * through a queue: Android drops a second one sent before the first is answered.
  */
 @SuppressLint("MissingPermission")
 class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME) {
@@ -37,6 +42,22 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
         val SERVICE: UUID = UUID.fromString("00000101-6b61-726f-6f00-616e70616973")
         val MESSAGE: UUID = UUID.fromString("00000102-6b61-726f-6f00-616e70616973")
         val CCCD: UUID    = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        val PAIR: UUID    = UUID.fromString("00000103-6b61-726f-6f00-616e70616973")
+        private const val PAIR_TIMEOUT_MS = 120_000L
+        // A message older than this is dropped: one recorded on the air cannot be shown again later
+        private const val MAX_AGE_MS = 5 * 60_000L
+
+        @Volatile var instance: BridgeExtension? = null
+        /** The link and the pairing in a few words, for the app's first line. */
+        @Volatile var linkState: String = "looking for the phone"
+
+        /** The app's side of a pairing; called on the main thread. */
+        interface PairUi {
+            fun code(code: String)
+            fun waiting()
+            fun done(ok: Boolean, message: String)
+        }
+        @Volatile var pairUi: PairUi? = null
 
         // A message: two short high beeps. A call: three rings of two alternating tones, unlike any Karoo sound
         private fun tone(hz: Int?, ms: Int) = PlayBeepPattern.Tone(frequency = hz, durationMs = ms)
@@ -65,9 +86,105 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
     private var inReachAddress: String? = null
     private var inReachUp = false
     private var inReachAt = 0L
+    private val prefs by lazy { getSharedPreferences("bridge", Context.MODE_PRIVATE) }
+    // The key of the pairing, once the phone said it knows it (hello); null: nothing is shown
+    private var session: ByteArray? = null
+    private class Pairing(val keys: KeyPair) { var result: PairCrypto.Paired? = null; var confirmed = false }
+    private var pairing: Pairing? = null
+
+    private fun storedKey(): ByteArray? = prefs.getString("pair_key", null)?.let { Base64.decode(it, Base64.NO_WRAP) }
+    private fun storedId(): ByteArray? = prefs.getString("pair_id", null)?.let { Base64.decode(it, Base64.NO_WRAP) }
+
+    // One GATT operation at a time: each returns false when it could not be sent, and the next one goes
+    // when its callback came (opDone)
+    private val ops = ArrayDeque<(BluetoothGatt) -> Boolean>()
+    private var opBusy = false
+
+    private fun enqueue(op: (BluetoothGatt) -> Boolean) { main.post { ops.addLast(op); runOps() } }
+
+    private fun runOps() {
+        if (opBusy) return
+        val g = gatt ?: run { ops.clear(); return }
+        while (ops.isNotEmpty()) if (ops.removeFirst()(g)) { opBusy = true; return }
+    }
+
+    private fun opDone() { main.post { opBusy = false; runOps() } }
+
+    @Suppress("DEPRECATION")   // the Karoo runs Android 12: the Android 13 writeCharacteristic(ch, value, type) does not exist there
+    private fun write(uuid: UUID, value: ByteArray) = enqueue { g ->
+        val ch = g.getService(SERVICE)?.getCharacteristic(uuid) ?: return@enqueue false
+        ch.value = value
+        ch.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        g.writeCharacteristic(ch)
+    }
+
+    private fun read(uuid: UUID) = enqueue { g ->
+        val ch = g.getService(SERVICE)?.getCharacteristic(uuid) ?: return@enqueue false
+        g.readCharacteristic(ch)
+    }
+
+    /** "PAIR WITH PHONE" in the app: the phone must have "Pair a Karoo" open. */
+    fun startPairing() = main.post {
+        if (gatt == null) { pairUi?.done(false, "No phone found: on the phone open NotifyBridge, tap Start bridge, then try again."); return@post }
+        val p = Pairing(PairCrypto.newKeyPair())
+        pairing = p
+        FileLog.i("pairing started")
+        write(PAIR, byteArrayOf(1) + PairCrypto.commit(p.keys.public.encoded))
+        read(PAIR)
+        main.removeCallbacks(pairTimeout)
+        main.postDelayed(pairTimeout, PAIR_TIMEOUT_MS)
+    }
+
+    /** The user's answer to the code on the Karoo; then the phone's is awaited. */
+    fun answerPairing(same: Boolean) = main.post {
+        val p = pairing ?: return@post
+        if (!same) { endPairing(false, "Pairing cancelled."); return@post }
+        p.confirmed = true
+        pairUi?.waiting()
+        read(PAIR)
+    }
+
+    private val pairTimeout = Runnable { if (pairing != null) endPairing(false, "No answer from the phone: try again.") }
+
+    private fun endPairing(ok: Boolean, message: String) {
+        pairing = null
+        main.removeCallbacks(pairTimeout)
+        FileLog.i("pairing ${if (ok) "done" else "ended: $message"}")
+        pairUi?.done(ok, message)
+    }
+
+    // The answers to our writes of PAIR, by their first byte (see BridgeService on the phone)
+    private fun onPairReply(v: ByteArray) {
+        if (v.isEmpty()) return
+        when (v[0].toInt()) {
+            2 -> { val p = pairing ?: return
+                if (v.size == 1) { endPairing(false, "The phone is not waiting: tap Pair a Karoo on the phone first, then here."); return }
+                val phonePub = v.copyOfRange(1, v.size)
+                val mine = p.keys.public.encoded
+                p.result = runCatching { PairCrypto.derive(p.keys, mine, phonePub) }.getOrNull()
+                    ?: run { endPairing(false, "The phone's key is not valid."); return }
+                write(PAIR, byteArrayOf(3) + mine)
+                pairUi?.code(p.result!!.code) }
+            4 -> { val p = pairing ?: return
+                when (v.getOrNull(1)?.toInt()) {
+                    1 -> { val r = p.result ?: return
+                        prefs.edit().putString("pair_key", Base64.encodeToString(r.key, Base64.NO_WRAP))
+                            .putString("pair_id", Base64.encodeToString(r.id, Base64.NO_WRAP)).apply()
+                        session = r.key
+                        linkState = "paired, connected"
+                        endPairing(true, "Paired: messages now travel encrypted.") }
+                    2 -> endPairing(false, "The phone refused the pairing, or the codes did not match.")
+                    else -> if (p.confirmed) main.postDelayed({ if (pairing === p) read(PAIR) }, 1_000L)
+                } }
+            6 -> { session = if (v.getOrNull(1)?.toInt() == 1) storedKey() else null
+                linkState = if (session != null) "paired, connected" else "connected, but the phone does not know this Karoo: pair again"
+                FileLog.i("hello: ${if (session != null) "paired" else "unknown to the phone"}") }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
+        instance = this
         karoo = KarooSystemService(applicationContext)
         FileLog.init(this)
         FileLog.i("extension started")
@@ -96,6 +213,7 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
     }
 
     override fun onDestroy() {
+        instance = null
         main.removeCallbacks(heartbeat)
         main.removeCallbacks(check)
         main.removeCallbacks(inReachCheck)
@@ -151,9 +269,9 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
     // subscribed. A link can look up while the phone's service restarted and forgot us
     private val check = object : Runnable {
         override fun run() {
-            val g = gatt ?: return
-            val ch = g.getService(SERVICE)?.getCharacteristic(MESSAGE)
-            if (checkPending || ch == null || !g.readCharacteristic(ch)) { retry(if (checkPending) "no answer to the check" else "check not sent"); return }
+            if (gatt == null) return
+            if (checkPending) { retry("no answer to the check"); return }
+            read(MESSAGE)
             checkPending = true
             main.postDelayed(this, 60_000)
         }
@@ -165,6 +283,10 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
         checkPending = false
         runCatching { gatt?.close() }
         gatt = null
+        ops.clear(); opBusy = false
+        session = null
+        linkState = if (storedKey() != null) "paired, looking for the phone" else "not paired, looking for the phone"
+        if (pairing != null) endPairing(false, "The link to the phone dropped: try again.")
         main.postDelayed({ startScan() }, 10_000)
     }
 
@@ -228,31 +350,63 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
 
         override fun onMtuChanged(g: BluetoothGatt, mtu: Int, status: Int) { FileLog.i("mtu $mtu"); g.discoverServices() }
 
+        // The phone's GATT server was reopened (Start bridge again): the characteristics we hold are stale and
+        // the notifications on the new ones are dropped by Android without a word. Discover, subscribe, hello again
+        override fun onServiceChanged(g: BluetoothGatt) {
+            FileLog.i("phone's services changed: subscribing again")
+            main.post { ops.clear(); opBusy = false; g.discoverServices() }
+        }
+
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             val ch = g.getService(SERVICE)?.getCharacteristic(MESSAGE)
             if (ch == null) { main.post { retry("service missing") }; return }
             g.setCharacteristicNotification(ch, true)
-            val d = ch.getDescriptor(CCCD)
-            // The Karoo runs Android 12: the Android 13 writeDescriptor(d, value) does not exist there
-            @Suppress("DEPRECATION")
-            d.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            @Suppress("DEPRECATION")
-            g.writeDescriptor(d)
+            enqueue { gg ->
+                val d = gg.getService(SERVICE)?.getCharacteristic(MESSAGE)?.getDescriptor(CCCD) ?: return@enqueue false
+                // The Karoo runs Android 12: the Android 13 writeDescriptor(d, value) does not exist there
+                @Suppress("DEPRECATION")
+                d.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                @Suppress("DEPRECATION")
+                gg.writeDescriptor(d)
+            }
             FileLog.i("subscribed")
+            // Hello: the id of our key, so the phone seals the messages with it; no pairing yet, none
+            val id = storedId()
+            if (id != null) { write(PAIR, byteArrayOf(5) + id); read(PAIR) }
+            else { session = null; linkState = "connected, not paired: tap PAIR WITH PHONE" }
             main.post { lostAt = 0L; main.removeCallbacks(check); checkPending = false; main.postDelayed(check, 60_000) }
+        }
+
+        override fun onDescriptorWrite(g: BluetoothGatt, d: BluetoothGattDescriptor, status: Int) = opDone()
+
+        override fun onCharacteristicWrite(g: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS) FileLog.w("write of ${ch.uuid} failed, status $status")
+            opDone()
         }
 
         // Android 12 calls this form; the (g, ch, value, status) one only exists from Android 13
         @Deprecated("Android 12 callback")
         @Suppress("DEPRECATION")
-        override fun onCharacteristicRead(g: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) = onCheck(g, ch.value, status)
+        override fun onCharacteristicRead(g: BluetoothGatt, ch: BluetoothGattCharacteristic, status: Int) = onRead(g, ch, ch.value, status)
 
-        override fun onCharacteristicRead(g: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray, status: Int) = onCheck(g, value, status)
+        override fun onCharacteristicRead(g: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray, status: Int) = onRead(g, ch, value, status)
+
+        private fun onRead(g: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray?, status: Int) {
+            opDone()
+            if (ch.uuid == PAIR) { val v = value ?: return; main.post { onPairReply(v) }; return }
+            onCheck(g, value, status)
+        }
 
         private fun onCheck(g: BluetoothGatt, value: ByteArray?, status: Int) { main.post {
             checkPending = false
-            val answer = runCatching { JSONObject(value!!.decodeToString()) }.getOrNull()
+            // Sealed once paired; in clear it says only "subscribed" and "paired"
+            val key = session
+            val plain = value?.let { v -> key?.let { PairCrypto.open(it, v) } ?: v }
+            val answer = runCatching { JSONObject(plain!!.decodeToString()) }.getOrNull()
             val subscribed = answer?.optBoolean("subscribed") ?: false
+            // The phone restarted and lost our hello: say it again (a new subscription comes with it)
+            // (only while we had a session: a phone that forgot this Karoo would otherwise be asked every minute)
+            val lostHello = answer != null && key != null && !answer.optBoolean("paired", true)
             answer?.optString("ir")?.takeIf { it.isNotEmpty() }?.let { ir ->
                 if (ir != inReachAddress) {
                     inReachAddress = ir
@@ -264,7 +418,7 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
             }
             when {
                 status != BluetoothGatt.GATT_SUCCESS -> retry("check failed, status $status")
-                !subscribed -> { FileLog.i("phone forgot the subscription: subscribing again"); g.discoverServices() }
+                !subscribed || lostHello -> { FileLog.i("phone forgot the subscription: subscribing again"); g.discoverServices() }
             }
         } }
 
@@ -283,7 +437,11 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
         }
 
         private fun onMessage(value: ByteArray) {
-            val j = runCatching { JSONObject(value.decodeToString()) }.getOrNull() ?: return
+            val key = session ?: run { FileLog.i("message while not paired: dropped"); return }
+            val plain = PairCrypto.open(key, value) ?: run { FileLog.w("message not sealed with our key: dropped"); return }
+            val j = runCatching { JSONObject(plain.decodeToString()) }.getOrNull() ?: return
+            val age = System.currentTimeMillis() - j.optLong("t", 0L)
+            if (age !in -MAX_AGE_MS..MAX_AGE_MS) { FileLog.w("message ${age / 1000} s old: dropped"); return }
             count++
             val app = j.optString("app"); val title = j.optString("title"); val text = j.optString("text")
             FileLog.i("message #$count from $app (${value.size} B)")

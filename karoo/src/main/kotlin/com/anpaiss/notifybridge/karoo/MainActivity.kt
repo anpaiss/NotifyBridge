@@ -1,6 +1,8 @@
 package com.anpaiss.notifybridge.karoo
 
 import android.app.Activity
+import android.app.AlertDialog
+import android.view.Gravity
 import android.content.Intent
 import android.net.Uri
 import android.content.Context
@@ -23,7 +25,34 @@ class MainActivity : Activity() {
     }
 
     private lateinit var status: TextView
+    private lateinit var why: TextView
+    private lateinit var pairButton: Button
+    private lateinit var pairState: TextView
+    private var dialog: AlertDialog? = null
 
+    // The steps of a pairing, from the extension
+    private val pairUi = object : BridgeExtension.Companion.PairUi {
+        override fun code(code: String) {
+            dialog?.dismiss()
+            dialog = AlertDialog.Builder(this@MainActivity).setTitle("Same code on the phone?")
+                .setMessage(code)
+                .setPositiveButton("Same code: pair") { _, _ -> BridgeExtension.instance?.answerPairing(true) }
+                .setNegativeButton("Cancel") { _, _ -> BridgeExtension.instance?.answerPairing(false) }
+                .setCancelable(false).show()
+            dialog?.findViewById<TextView>(android.R.id.message)?.apply { textSize = 40f; gravity = Gravity.CENTER }
+        }
+        override fun waiting() {
+            dialog?.dismiss()
+            dialog = AlertDialog.Builder(this@MainActivity).setTitle("Pairing")
+                .setMessage("Waiting for the OK on the phone…")
+                .setNegativeButton("Cancel") { _, _ -> BridgeExtension.instance?.answerPairing(false) }.show()
+        }
+        override fun done(ok: Boolean, message: String) {
+            dialog?.dismiss(); dialog = null
+            pairState.text = message
+            refresh()
+        }
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         status = TextView(this).apply { textSize = 18f }
@@ -39,6 +68,35 @@ class MainActivity : Activity() {
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
             addView(status)
+            // Pairing with the phone: why, and the button; the why goes away once paired
+            why = TextView(this@MainActivity).apply {
+                textSize = 15f; setPadding(pad / 2, pad / 2, pad / 2, pad / 2); setBackgroundColor(0xFFFFFFFF.toInt())
+                text = "Pair once with your phone: your messages then travel encrypted, and no other device nearby can read them."
+            }
+            addView(why)
+            pairButton = Button(this@MainActivity).apply {
+                setOnClickListener {
+                    val ext = BridgeExtension.instance ?: run { pairState.text = "NotifyBridge is not running: restart the Karoo"; return@setOnClickListener }
+                    fun start() {
+                        BridgeExtension.pairUi = pairUi
+                        dialog?.dismiss()
+                        dialog = AlertDialog.Builder(this@MainActivity).setTitle("Pairing")
+                            .setMessage("Looking for the phone's answer…\nOn the phone: NotifyBridge, Pair a Karoo.")
+                            .setNegativeButton("Cancel") { _, _ -> ext.answerPairing(false) }.show()
+                        ext.startPairing()
+                    }
+                    // Already paired: a tap by mistake must not start a new pairing; the key stays until a new one succeeds
+                    val paired = getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("pair_key", null) != null
+                    if (!paired) start()
+                    else { dialog?.dismiss(); dialog = AlertDialog.Builder(this@MainActivity).setTitle("Already paired")
+                        .setMessage("This Karoo is already paired with a phone. Pair again?")
+                        .setPositiveButton("Pair again") { _, _ -> start() }
+                        .setNegativeButton("Cancel", null).show() }
+                }
+            }
+            addView(pairButton)
+            pairState = TextView(this@MainActivity).apply { textSize = 15f }
+            addView(pairState)
             addView(grant)
             // The real popup with a made-up message, as every extension with a popup has; no sound, nothing is sent
             addView(Button(this@MainActivity).apply {
@@ -76,11 +134,29 @@ class MainActivity : Activity() {
         }) })
     }
 
+    override fun onPause() {
+        BridgeExtension.pairUi = null
+        dialog?.dismiss(); dialog = null
+        super.onPause()
+    }
+
+    private fun refresh() {
+        val paired = getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("pair_key", null) != null
+        why.visibility = if (paired) View.GONE else View.VISIBLE
+        pairButton.text = if (paired) "PAIR AGAIN" else "PAIR WITH PHONE"
+        status.text = "Phone: ${BridgeExtension.linkState}" + (if (paired) "\nMessages encrypted: only this Karoo can read them." else "") +
+            "\n\n" + overlayText()
+    }
+
     override fun onResume() {
         super.onResume()
-        status.text = if (Settings.canDrawOverlays(this))
+        BridgeExtension.pairUi = pairUi
+        refresh()
+    }
+
+    private fun overlayText() =
+        if (Settings.canDrawOverlays(this))
             "Overlay permission: granted ✓\nMessages appear at the bottom of the ride screen."
         else
             "Overlay permission: MISSING\nMessages use the Karoo's own alert at the top."
-    }
 }

@@ -28,14 +28,18 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.ParcelUuid
 import org.json.JSONObject
+import java.security.KeyPair
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Test of the phone side: a Bluetooth LE peripheral with one service, whose
+ * The phone side: a Bluetooth LE peripheral with one service, whose
  * characteristic notifies each phone notification as a small JSON to the
- * Karoo that subscribed. Runs as a foreground service so it stays up with the
- * screen off, next to the Hammerhead Companion.
+ * Karoo that subscribed, sealed with the key of that Karoo ([PairCrypto]).
+ * A Karoo is paired once through the PAIR characteristic, while the user
+ * tapped "Pair a Karoo" and after the same code was confirmed on both
+ * screens; after each connection it says which key it holds (hello).
+ * Runs as a foreground service so it stays up with the screen off.
  */
 @SuppressLint("MissingPermission")
 class BridgeService : Service() {
@@ -44,6 +48,12 @@ class BridgeService : Service() {
         val SERVICE: UUID = UUID.fromString("00000101-6b61-726f-6f00-616e70616973")
         val MESSAGE: UUID = UUID.fromString("00000102-6b61-726f-6f00-616e70616973")
         val CCCD: UUID    = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
+        // Pairing and hello; the first byte of each write and reply tells what it is (see the write handler)
+        val PAIR: UUID    = UUID.fromString("00000103-6b61-726f-6f00-616e70616973")
+        private const val PAIR_WINDOW_MS = 120_000L
+
+        /** The code to compare, for the open app: the Karoo's address and the code. Called on the main thread. */
+        @Volatile var onPairCode: ((String, String) -> Unit)? = null
 
         @Volatile var instance: BridgeService? = null
         @Volatile var status: String = "stopped"
@@ -52,7 +62,9 @@ class BridgeService : Service() {
 
         fun send(app: String, title: String, text: String, call: Boolean = false) {
             val s = instance ?: run { FileLog.w("not running: '$app' dropped"); return }
-            s.notifyAll(JSONObject().put("app", app).put("title", title).put("text", text).put("call", call))
+            // "t": the Karoo drops a message much older than now, so one recorded on the air cannot be shown again later
+            s.notifyAll(JSONObject().put("app", app).put("title", title).put("text", text).put("call", call)
+                .put("t", System.currentTimeMillis()))
         }
     }
 
@@ -60,6 +72,44 @@ class BridgeService : Service() {
     private var server: BluetoothGattServer? = null
     private val subscribers = ConcurrentHashMap<String, BluetoothDevice>()
     private val mtu = ConcurrentHashMap<String, Int>()
+    private val store by lazy { PairStore(this) }
+    // The key of each connected Karoo that said hello with an id this phone knows
+    private val sessions = ConcurrentHashMap<String, ByteArray>()
+    // The answer the next read of PAIR gets, per Karoo
+    private val replies = ConcurrentHashMap<String, ByteArray>()
+    private class Pending(val commit: ByteArray, val keys: KeyPair) {
+        var paired: PairCrypto.Paired? = null
+        var answer = 0   // 0 waiting for the user, 1 paired, 2 refused
+    }
+    private val pending = ConcurrentHashMap<String, Pending>()
+    @Volatile private var pairingUntil = 0L
+
+    /** "Pair a Karoo": a Karoo may start pairing for the next 2 minutes. */
+    fun startPairing() {
+        pending.clear()
+        pairingUntil = System.currentTimeMillis() + PAIR_WINDOW_MS
+        FileLog.i("pairing open for 2 min")
+    }
+
+    /** The user's answer to the code on the phone. */
+    fun answerPairing(address: String, same: Boolean) {
+        val p = pending[address] ?: return
+        val r = p.paired ?: return
+        if (same) { store.add(r.id, r.key); sessions[address] = r.key; p.answer = 1 } else p.answer = 2
+        replies[address] = byteArrayOf(4, p.answer.toByte())
+        pairingUntil = 0L
+        FileLog.i("pairing with $address: ${if (same) "paired" else "refused"}")
+        status = statusLine()
+    }
+
+    /** Forget every paired Karoo: they must pair again before any message reaches them. */
+    fun forgetAll() {
+        store.clear(); sessions.clear()
+        FileLog.i("paired Karoos forgotten")
+        status = statusLine()
+    }
+
+    private fun statusLine() = "advertising, ${subscribers.size} Karoo connected, ${sessions.size} paired"
     private var sent = 0
     private val main = Handler(Looper.getMainLooper())
 
@@ -129,6 +179,9 @@ class BridgeService : Service() {
             BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE))
         val svc = BluetoothGattService(SERVICE, BluetoothGattService.SERVICE_TYPE_PRIMARY)
         svc.addCharacteristic(ch)
+        svc.addCharacteristic(BluetoothGattCharacteristic(PAIR,
+            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE,
+            BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE))
         server = manager.openGattServer(this, gattCallback)?.also { it.addService(svc) }
         FileLog.i("GATT server ${if (server != null) "open" else "FAILED"}")
     }
@@ -156,9 +209,10 @@ class BridgeService : Service() {
                 FileLog.i("connected: ${device.address}")
             } else {
                 subscribers.remove(device.address); mtu.remove(device.address)
+                sessions.remove(device.address); replies.remove(device.address)
                 FileLog.i("disconnected: ${device.address}")
             }
-            status = "advertising, ${subscribers.size} Karoo subscribed"
+            status = statusLine()
         }
 
         // The Karoo asks the MTU first thing; the phone's own links (inReach, watch) do not come here.
@@ -174,19 +228,72 @@ class BridgeService : Service() {
             if (descriptor.uuid == CCCD) {
                 if (value != null && value.isNotEmpty() && value[0].toInt() != 0) subscribers[device.address] = device
                 else subscribers.remove(device.address)
-                status = "advertising, ${subscribers.size} Karoo subscribed"
+                status = statusLine()
                 FileLog.i("subscription from ${device.address}: ${subscribers.containsKey(device.address)}")
             }
             if (responseNeeded) server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
         }
 
-        // The Karoo's periodic check: is it still subscribed here? After this service restarts it no longer is
-        override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic) {
-            val sub = JSONObject().put("subscribed", subscribers.containsKey(device.address))
-            inReach()?.let { (address, up) -> sub.put("ir", address).put("irUp", up) }
-            server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, sub.toString().toByteArray())
-            return
+        // PAIR, first byte of the write:
+        //   1 + SHA-256 commitment of the Karoo's public key: start pairing (only within 2 min of "Pair a Karoo");
+        //       the next read answers 2 + the phone's public key, or just 2 when pairing is not open
+        //   3 + the Karoo's public key, which must match the commitment: both sides now show the code;
+        //       the next read answers 4 + 0 waiting for the user here, 1 paired, 2 refused
+        //   5 + the 8-byte id of the key the Karoo holds (after each connection): the next read answers 6 + 1 known, 0 not
+        override fun onCharacteristicWriteRequest(device: BluetoothDevice, requestId: Int, characteristic: BluetoothGattCharacteristic,
+                                                  preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?) {
+            val a = device.address
+            var ok = characteristic.uuid == PAIR && value != null && value.isNotEmpty()
+            if (ok) {
+                val body = value!!.copyOfRange(1, value.size)
+                when (value[0].toInt()) {
+                    1 -> if (System.currentTimeMillis() < pairingUntil && body.size == 32) {
+                        val keys = PairCrypto.newKeyPair()
+                        pending[a] = Pending(body, keys)
+                        replies[a] = byteArrayOf(2) + keys.public.encoded
+                        FileLog.i("pairing: a Karoo asks ($a)")
+                    } else { replies[a] = byteArrayOf(2); FileLog.i("pairing asked by $a, but not open on the phone") }
+                    3 -> {
+                        val p = pending[a]
+                        if (p != null && PairCrypto.commit(body).contentEquals(p.commit)) {
+                            val r = PairCrypto.derive(p.keys, body, p.keys.public.encoded)
+                            p.paired = r
+                            replies[a] = byteArrayOf(4, 0)
+                            main.post { onPairCode?.invoke(a, r.code) }
+                            FileLog.i("pairing: code shown")
+                        } else { replies[a] = byteArrayOf(4, 2); FileLog.w("pairing: key does not match its commitment ($a)") }
+                    }
+                    5 -> {
+                        val key = store.find(body)
+                        if (key != null) sessions[a] = key else sessions.remove(a)
+                        replies[a] = byteArrayOf(6, if (key != null) 1 else 0)
+                        FileLog.i("hello from $a: ${if (key != null) "paired" else "unknown key"}")
+                        status = statusLine()
+                    }
+                    else -> ok = false
+                }
+            }
+            if (responseNeeded) server?.sendResponse(device, requestId,
+                if (ok) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_FAILURE, 0, null)
         }
+
+        // MESSAGE: the Karoo's periodic check (is it still subscribed here? After this service restarts it no
+        // longer is), sealed with its key once paired. PAIR: the answer to its last write. A value longer than
+        // one packet is read in parts, from [offset]
+        override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic) {
+            val value = if (characteristic.uuid == PAIR) replies[device.address] ?: byteArrayOf(0) else check(device.address)
+            val part = if (offset >= value.size) ByteArray(0) else value.copyOfRange(offset, value.size)
+            server?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, part)
+        }
+    }
+
+    // In clear only "subscribed" and "paired": the inReach's address goes to a paired Karoo only, sealed
+    private fun check(address: String): ByteArray {
+        val key = sessions[address]
+        val sub = JSONObject().put("subscribed", subscribers.containsKey(address)).put("paired", key != null)
+        if (key == null) return sub.toString().toByteArray()
+        inReach()?.let { (ir, up) -> sub.put("ir", ir).put("irUp", up) }
+        return PairCrypto.seal(key, sub.toString().toByteArray())
     }
 
     // The Garmin inReach paired with this phone, and whether its app (Messenger, Explore) holds the link now:
@@ -202,14 +309,17 @@ class BridgeService : Service() {
         val ch = srv.getService(SERVICE)?.getCharacteristic(MESSAGE) ?: return
         if (subscribers.isEmpty()) { FileLog.i("no Karoo subscribed: '${json.optString("app")}' not sent"); return }
         for (d in subscribers.values) {
-            // One notification carries at most MTU-3 bytes: shorten the text to fit
-            val room = (mtu[d.address] ?: 23) - 3
+            val key = sessions[d.address]
+            if (key == null) { FileLog.i("${d.address} not paired: '${json.optString("app")}' not sent"); continue }
+            // One notification carries at most MTU-3 bytes, the seal included: shorten the text to fit
+            val room = (mtu[d.address] ?: 23) - 3 - PairCrypto.OVERHEAD
             var j = json
             var bytes = j.toString().toByteArray()
             while (bytes.size > room && j.optString("text").isNotEmpty()) {
                 val t = j.optString("text"); j = JSONObject(j.toString()).put("text", t.take(maxOf(0, t.length - (bytes.size - room) - 1)))
                 bytes = j.toString().toByteArray()
             }
+            bytes = PairCrypto.seal(key, bytes)
             val r = srv.notifyCharacteristicChanged(d, ch, false, bytes)
             sent++
             FileLog.i("sent #$sent to ${d.address} (${bytes.size} B, result $r): ${j.optString("app")}")
