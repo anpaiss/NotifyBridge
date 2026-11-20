@@ -2,6 +2,7 @@ package com.anpaiss.notifybridge.phone
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
@@ -10,6 +11,7 @@ import android.widget.ScrollView
 import android.widget.Switch
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationManagerCompat
 
 /** Start the bridge, open the notification access settings, send a test, and choose what goes to the Karoo. */
 class MainActivity : AppCompatActivity() {
@@ -31,6 +33,10 @@ class MainActivity : AppCompatActivity() {
             BridgeService.start(this)
         })
         col.addView(button("Notification access") { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) })
+        // Android 13+ greys out notification access for an app installed from an APK until it is allowed here
+        col.addView(button("App info (allow restricted settings)") {
+            startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        })
         col.addView(button("Send test") { BridgeService.send("NotifyBridge", "Test", "Hello Karoo, this is a test from the phone") })
         col.addView(button("Refresh") {})
         col.addView(TextView(this).apply {
@@ -47,7 +53,10 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() { super.onResume(); refresh() }
 
     private fun refresh() {
-        status.text = "Bridge: ${BridgeService.status}"
+        val access = NotificationManagerCompat.getEnabledListenerPackages(this).contains(packageName)
+        status.text = "Bridge: ${BridgeService.status}\n" + if (access) "Notification access: granted ✓"
+        else "Notification access: MISSING. Tap Notification access and turn NotifyBridge on. If its switch is greyed " +
+            "out (\"Restricted setting\"): App info, the ⋮ menu at the top right, Allow restricted settings, then try again."
         apps.removeAllViews()
         apps.addView(Switch(this).apply {
             text = "Calls"; textSize = 18f; isChecked = filter.calls

@@ -31,7 +31,7 @@ import java.util.UUID
  * characteristic and shows each message as a Karoo in-ride alert.
  */
 @SuppressLint("MissingPermission")
-class BridgeExtension : KarooExtension("notifybridge", "0.1") {
+class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME) {
 
     companion object {
         val SERVICE: UUID = UUID.fromString("00000101-6b61-726f-6f00-616e70616973")

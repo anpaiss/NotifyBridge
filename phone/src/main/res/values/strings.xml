@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">NotifyBridge</string>
+    <color name="launcher_bg">#FF5823</color>
 </resources>

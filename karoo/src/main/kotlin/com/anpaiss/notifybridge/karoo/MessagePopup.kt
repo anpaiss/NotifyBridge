@@ -32,7 +32,16 @@ class MessagePopup(private val context: Context) {
         // The alarm keeps the screen to itself for 1 min, then the other popups may show over it (it stays
         // under them until a tap, siren included): its siren cannot go unheard, the MTA must not wait 10 min (14/11)
         private const val ALARM_HOLD_MS = 60_000L
+
+        // Text size of the message popup, chosen in the app: message and app name in sp (20/11/2026)
+        const val TEXT_SIZE = "text_size"
+        val TEXT_SIZES = linkedMapOf("Small" to (20f to 14f), "Medium" to (24f to 16f), "Large" to (30f to 18f))
+        const val DEFAULT_TEXT_SIZE = "Medium"
     }
+
+    private fun sizes(): Pair<Float, Float> =
+        TEXT_SIZES[context.getSharedPreferences("bridge", Context.MODE_PRIVATE).getString(TEXT_SIZE, DEFAULT_TEXT_SIZE)]
+            ?: TEXT_SIZES.getValue(DEFAULT_TEXT_SIZE)
 
     private val main = Handler(Looper.getMainLooper())
     private val wm = context.getSystemService(WindowManager::class.java)
@@ -46,9 +55,10 @@ class MessagePopup(private val context: Context) {
     fun show(message: String, app: String, color: Int) = messageTurn.request(PopupTurn.PRIORITY_MESSAGE, AUTO_DISMISS_MS,
         maxWaitMs = MESSAGE_MAX_WAIT_MS) {
         removeView()
+        val (bigSp, smallSp) = sizes()
         val big = TextView(context).apply {
             text = message
-            textSize = 24f
+            textSize = bigSp
             setTypeface(typeface, Typeface.BOLD)
             setTextColor(0xFFFFFFFF.toInt())
             maxLines = 4
@@ -57,7 +67,7 @@ class MessagePopup(private val context: Context) {
         }
         val small = TextView(context).apply {
             text = app
-            textSize = 16f
+            textSize = smallSp
             setTextColor(0xFFFFFFFF.toInt())
         }
         val root = LinearLayout(context).apply {
