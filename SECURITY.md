@@ -27,7 +27,13 @@ NotifyBridge is two apps:
   messages in a popup drawn over the ride screen (overlay permission) or as a
   Karoo alert or notification. It has no internet permission either.
 
+The two apps pair once through a characteristic of that service: an ECDH
+P-256 exchange with a commitment and a six-digit code compared by the user.
+After that the messages and the link check are sealed with AES-256-GCM under
+the shared key; an unpaired Karoo cannot read them. The details are in the
+README, "Pairing and encryption, in detail".
+
 Reports about the apps' own code are in scope: the GATT service and who can
-read from it, the handling of notification contents, the exported components,
+read from it, the pairing and the encryption, the handling of notification contents, the exported components,
 the files in the apps' private storage. Issues in Android, the Karoo OS or the
 Karoo extension SDK should be reported to Google or Hammerhead.

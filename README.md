@@ -4,7 +4,7 @@
 
 Your phone's messages and calls on the Hammerhead Karoo, in large type at the bottom of the ride screen, and only the ones you choose: app by app, and on WhatsApp person by person and group by group.
 
-Two small apps, one on the phone and one on the Karoo, talking over Bluetooth. No account, no internet, no server in between.
+Two small apps, one on the phone and one on the Karoo, talking over Bluetooth. No account, no internet, no server in between. Paired once with a code, so every message travels encrypted and only your Karoo can read it.
 
 ![The message popup in its three text sizes, on the Karoo](docs/text-sizes.png)
 
@@ -21,6 +21,8 @@ Two small apps, one on the phone and one on the Karoo, talking over Bluetooth. N
 - apps: each app appears in the list the first time it posts a notification, switched off. WhatsApp, SMS and calls are on from the start;
 - WhatsApp: each person and each group appears under it after their first message, switched off. Switch on your family, leave the busy groups off;
 - calls: a switch of their own, whatever app rings.
+
+**Encrypted, paired once.** Bluetooth reaches anyone nearby. The first time, phone and Karoo pair with a six-digit code you compare on the two screens; from then on every message is encrypted with a key only the two of them hold, and a Karoo that is not paired receives nothing it can read.
 
 **Not riding**, a message goes to the Karoo's notification centre instead, as the Karoo's own notifications do.
 
@@ -49,7 +51,15 @@ Once installed it appears in the Karoo **Extensions** library, and the Karoo che
 3. Tap **Notification access** and switch NotifyBridge on.
 
    On Android 13 and newer the switch is greyed out at first, with "Restricted setting": Android does this for every app installed from a file rather than from the Play Store. Tap **App info**, then the **⋮** menu at the top right, then **Allow restricted settings**, and go back to **Notification access**. The app's first line says when access is granted.
-4. Tap **Send test**: it should appear on the Karoo.
+
+**Pair them, once**
+
+1. On the phone tap **Pair a Karoo**. You then have 2 minutes.
+2. On the Karoo open **NotifyBridge** and tap **PAIR WITH PHONE**.
+3. Both screens show a six-digit code. If it is the same, tap **Same code: pair** on both. The phone then says "Paired Karoo: 1", the Karoo "Messages encrypted".
+4. Tap **Send test** on the phone: during a ride it appears as the popup, otherwise in the Karoo's notification centre.
+
+Until they are paired, no message reaches the Karoo. Pairing again (a new phone, a reinstalled app) asks first and replaces the key only when the new pairing succeeds. **Forget paired Karoos** on the phone deletes the keys, after a red warning.
 
 To avoid every message twice, switch off the phone notifications of the Hammerhead companion app.
 
@@ -57,11 +67,20 @@ To avoid every message twice, switch off the phone notifications of the Hammerhe
 
 The phone app reads the notifications Android shows, through the notification access you grant, and keeps only those of the apps, people and groups you switched on. It sends each one as a short Bluetooth Low Energy message to the Karoo: the app's name, the title (the sender, or the group) and the text, shortened to fit one message. Besides the messages it only tells the Karoo, when asked, whether it is still subscribed and whether a Garmin inReach paired with the phone is connected. It never replies to or acts on a notification.
 
+Everything after pairing is encrypted: the messages, and the answer about the link and the inReach. In clear there is only whether the Karoo is subscribed and paired.
+
 The Karoo extension looks for the phone by the Bluetooth service it advertises, connects, and checks the link every minute; when the phone goes out of range it looks again, at full speed for 2 minutes and then in low-power mode, and reconnects by itself. During a ride the message becomes our popup; otherwise a Karoo notification.
+
+## Pairing and encryption, in detail
+
+- Pairing is an ECDH key exchange on P-256. The Karoo first sends only a hash of its public key and reveals the key after it has the phone's, so someone in between cannot try key after key until the codes match: one chance in a million. The six-digit code comes from the two public keys; comparing it is what proves no one is in between, so do compare it.
+- The shared key is derived from the ECDH secret and the two public keys. Each message is sealed with AES-256-GCM and a random nonce: a message altered on the way, or sealed with another key, is refused.
+- Each message carries its time, and the Karoo drops one older than 5 minutes: a message recorded on the air cannot be shown again later.
+- The keys stay in each app's private storage. A device nearby can still connect to the phone and see that something is sent, and when, but not what.
 
 ## Privacy
 
-No internet permission in either app, no account, no analytics. Your notifications go from the phone to the Karoo over Bluetooth and nowhere else. The choices you make stay on the phone. Both apps keep a short log of their own in their private storage, for troubleshooting: times, app names, link events, never the text of a message.
+No internet permission in either app, no account, no analytics. Your notifications go from the phone to the Karoo over Bluetooth and nowhere else, encrypted. The choices you make stay on the phone. Both apps keep a short log of their own in their private storage, for troubleshooting: times, app names, link events, never the text of a message.
 
 ## Sibling extensions
 
