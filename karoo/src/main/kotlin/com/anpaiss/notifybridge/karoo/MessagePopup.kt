@@ -124,7 +124,8 @@ class MessagePopup(private val context: Context) {
                     addView(TextView(context).apply {
                         text = "${MessagesDataType.hhmm(e.at)}  ${e.app}" + if (e.title.isNotEmpty()) "  ·  ${e.title}" else ""
                         textSize = smallSp; setTypeface(typeface, Typeface.BOLD); setTextColor(0xFFFFFFFF.toInt())
-                        maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                        // Two lines: a group name does not fit after the time and the app ("Ride gro…", 21/11)
+                        maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
                     })
                     if (e.text.isNotEmpty()) addView(TextView(context).apply {
                         text = e.text
