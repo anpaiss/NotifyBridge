@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://gist.githubusercontent.com/anpaiss/78cf5eb76ad50594402b9778008a00a8/raw/NotifyBridge-card-dark.svg">
+  <img alt="Downloads and latest release" src="https://gist.githubusercontent.com/anpaiss/78cf5eb76ad50594402b9778008a00a8/raw/NotifyBridge-card-light.svg">
+</picture>
+
 ![NotifyBridge for Hammerhead Karoo](docs/banner.png)
 
 # NotifyBridge
@@ -96,8 +101,10 @@ All of them on [lagorai.bike/extensions](https://lagorai.bike/extensions/).
 ## Is it safe?
 
 - The code is all here, open source.
-- <!-- TODO first release: VirusTotal link and engines count for both APKs --> Both APKs of each release are checked on VirusTotal; the release notes link the reports.
-- <!-- TODO first release: SHA-256 of NotifyBridge.apk and NotifyBridge-phone.apk --> Compare the SHA-256 in the release notes with the files you downloaded (`certutil -hashfile NotifyBridge.apk SHA256` on Windows, `sha256sum NotifyBridge.apk` elsewhere).
+- Both APKs of each release are checked on VirusTotal, and the release notes link the reports. Version 1.0.0: none of the 66 engines flag [NotifyBridge.apk](https://www.virustotal.com/gui/file/eec3a697ae322a7f540e7b8beffe1e002ccccc315df80e27b7aa7a0b0de96332) or [NotifyBridge-phone.apk](https://www.virustotal.com/gui/file/649742548672fa3018167f9d0d18d0dc2fa2790827fb4303ac0b12bab49d1206).
+- Compare the SHA-256 in the release notes with the files you downloaded (`certutil -hashfile NotifyBridge.apk SHA256` on Windows, `sha256sum NotifyBridge.apk` elsewhere). Version 1.0.0:
+  - `NotifyBridge.apk`: `eec3a697ae322a7f540e7b8beffe1e002ccccc315df80e27b7aa7a0b0de96332`
+  - `NotifyBridge-phone.apk`: `649742548672fa3018167f9d0d18d0dc2fa2790827fb4303ac0b12bab49d1206`
 - The APKs are built by GitHub Actions from the tagged source, with a signed provenance. Check it with `gh attestation verify NotifyBridge.apk -R anpaiss/NotifyBridge` (and the same for `NotifyBridge-phone.apk`).
 
 ## Support
