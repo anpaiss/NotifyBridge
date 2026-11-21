@@ -29,6 +29,7 @@ class MessagePopup(private val context: Context) {
     companion object {
         private const val AUTO_DISMISS_MS = 10_000L
         private const val MESSAGE_MAX_WAIT_MS = 30_000L
+        private const val LIST_DISMISS_MS = 30_000L
         // The alarm keeps the screen to itself for 1 min, then the other popups may show over it (it stays
         // under them until a tap, siren included): its siren cannot go unheard, the MTA must not wait 10 min (14/11)
         private const val ALARM_HOLD_MS = 60_000L
@@ -94,6 +95,63 @@ class MessagePopup(private val context: Context) {
         runCatching { wm.addView(root, params) }.onSuccess {
             current = root
             main.postDelayed({ if (current === root) remove() }, AUTO_DISMISS_MS)
+        }.onFailure { messageTurn.done() }
+    }
+
+    /**
+     * The last messages, newest first, from a tap on the Messages field (21/11/2026): each in the colour
+     * of its app, in the chosen text size. A tap closes it, or [LIST_DISMISS_MS]. Callable from any thread.
+     */
+    fun showList(entries: List<MessageLog.Entry>, color: (String) -> Int) = messageTurn.request(PopupTurn.PRIORITY_MESSAGE,
+        LIST_DISMISS_MS, maxWaitMs = MESSAGE_MAX_WAIT_MS) {
+        removeView()
+        val (bigSp, smallSp) = sizes()
+        val pad = dp(12f).toInt()
+        val list = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(pad, pad, pad, pad)
+            background = GradientDrawable().apply { cornerRadius = dp(10f); setColor(0xF0202020.toInt()) }
+            addView(TextView(context).apply {
+                text = if (entries.isEmpty()) "No messages in this ride" else "MESSAGES (last ${entries.size})"
+                textSize = smallSp; setTypeface(typeface, Typeface.BOLD); setTextColor(0xFFFFFFFF.toInt())
+            })
+            entries.forEach { e ->
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    val p = dp(8f).toInt()
+                    setPadding(p, p, p, p)
+                    background = GradientDrawable().apply { cornerRadius = dp(8f); setColor(context.getColor(color(e.app))) }
+                    addView(TextView(context).apply {
+                        text = "${MessagesDataType.hhmm(e.at)}  ${e.app}" + if (e.title.isNotEmpty()) "  ·  ${e.title}" else ""
+                        textSize = smallSp; setTypeface(typeface, Typeface.BOLD); setTextColor(0xFFFFFFFF.toInt())
+                        maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+                    })
+                    if (e.text.isNotEmpty()) addView(TextView(context).apply {
+                        text = e.text
+                        textSize = bigSp * 0.8f; setTextColor(0xFFFFFFFF.toInt())
+                        maxLines = 4; ellipsize = android.text.TextUtils.TruncateAt.END
+                    })
+                    setOnClickListener { remove() }
+                }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                    .apply { topMargin = dp(6f).toInt() })
+            }
+            setOnClickListener { remove() }
+        }
+        val root = android.widget.ScrollView(context).apply { addView(list) }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.CENTER
+            horizontalMargin = 0.03f
+            verticalMargin = 0.03f
+        }
+        runCatching { wm.addView(root, params) }.onSuccess {
+            current = root
+            main.postDelayed({ if (current === root) remove() }, LIST_DISMISS_MS)
         }.onFailure { messageTurn.done() }
     }
 

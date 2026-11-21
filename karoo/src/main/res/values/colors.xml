@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Messages field text: the Karoo draws fields on its own background (day white / night black) -->
+    <color name="page_text">#000000</color>
+    <color name="page_muted">#666666</color>
+</resources>

@@ -24,6 +24,11 @@
             </intent-filter>
         </activity>
 
+        <!-- Tap on the Messages field: opens the list (PendingIntent from our own RemoteViews) -->
+        <receiver
+            android:name=".MessagesTapReceiver"
+            android:exported="false" />
+
         <service
             android:name=".BridgeExtension"
             android:exported="true"

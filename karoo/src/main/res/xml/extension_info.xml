@@ -3,4 +3,13 @@
     displayName="@string/app_name"
     icon="@drawable/ic_bridge"
     id="notifybridge"
-    scansDevices="false" />
+    scansDevices="false">
+
+    <DataType
+        typeId="messages"
+        displayName="@string/field_messages_name"
+        description="@string/field_messages_desc"
+        graphical="true"
+        icon="@drawable/ic_bridge" />
+
+</ExtensionInfo>

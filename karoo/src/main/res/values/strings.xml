@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">NotifyBridge</string>
+    <string name="field_messages_name">Messages</string>
+    <string name="field_messages_desc">Messages of this ride and the last sender; tap to read the last 10</string>
     <color name="alert_bg">#FF5823</color>
     <color name="alert_text">#FFFFFF</color>
     <color name="alert_whatsapp">#1FAF54</color>

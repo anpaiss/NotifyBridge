@@ -71,6 +71,8 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
         val CALL_BEEP = List(3) { listOf(tone(1300, 150), tone(1000, 150), tone(1300, 150), tone(null, 350)) }.flatten()
     }
 
+    override val types by lazy { listOf(MessagesDataType(extension)) }
+
     private lateinit var karoo: KarooSystemService
     private lateinit var manager: BluetoothManager
     private lateinit var popup: MessagePopup
@@ -194,6 +196,8 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
                 if (now != riding) FileLog.i(if (now) "ride started" else "ride ended")
                 if (now && !riding) main.postDelayed(inReachCheck, INREACH_DELAY_MS)
                 if (!now) main.removeCallbacks(inReachCheck)
+                // The list of the Messages field lives only for the ride
+                if (!now && riding) main.post { MessageLog.clear() }
                 riding = now
             }
         }
@@ -210,6 +214,18 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
             FileLog.i("alive: link ${if (gatt != null) "up" else "down"}, $count received, ${if (riding) "riding" else "idle"}")
             main.postDelayed(this, 15 * 60_000L)
         }
+    }
+
+    /** Tap on the Messages field: the last messages over the ride screen. */
+    fun showMessages() = main.post {
+        if (popup.canShow()) popup.showList(MessageLog.all(), ::appColor)
+    }
+
+    // The popup takes the colour of the app it comes from, orange for the others
+    private fun appColor(app: String) = when {
+        app.contains("whatsapp", true) -> R.color.alert_whatsapp
+        app.contains("telegram", true) -> R.color.alert_telegram
+        else -> R.color.alert_bg
     }
 
     override fun onDestroy() {
@@ -429,13 +445,6 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
 
         override fun onCharacteristicChanged(g: BluetoothGatt, ch: BluetoothGattCharacteristic, value: ByteArray) = onMessage(value)
 
-        // The popup takes the colour of the app it comes from, orange for the others
-        private fun appColor(app: String) = when {
-            app.contains("whatsapp", true) -> R.color.alert_whatsapp
-            app.contains("telegram", true) -> R.color.alert_telegram
-            else -> R.color.alert_bg
-        }
-
         private fun onMessage(value: ByteArray) {
             val key = session ?: run { FileLog.i("message while not paired: dropped"); return }
             val plain = PairCrypto.open(key, value) ?: run { FileLog.w("message not sealed with our key: dropped"); return }
@@ -447,8 +456,17 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
             FileLog.i("message #$count from $app (${value.size} B)")
             // The message is the large line, the app below
             val message = listOf(title, text).filter { it.isNotEmpty() }.joinToString(": ").ifEmpty { app }
-            // Riding: our popup at the bottom, or the Karoo's alert at the top without the overlay permission.
-            // Otherwise InRideAlert is not shown, the Karoo's notification centre is
+            val at = System.currentTimeMillis()
+            main.post { MessageLog.add(MessageLog.Entry(at, app, title, text)) }
+            // Always in the Karoo's notification centre: the popup goes after a tap or 10 s, and one that
+            // waited too long behind another popup is not shown at all; there they can be read again (21/11)
+            karoo.dispatch(SystemNotification(
+                id = "notifybridge-$count",
+                header = app,
+                message = if (title.isNotEmpty()) title else app,
+                subText = text,
+            ))
+            // Riding: our popup at the bottom, or the Karoo's alert at the top without the overlay permission
             if (riding && popup.canShow()) {
                 popup.show(message, app, appColor(app))
                 karoo.dispatch(PlayBeepPattern(if (j.optBoolean("call")) CALL_BEEP else MESSAGE_BEEP))
@@ -461,11 +479,6 @@ class BridgeExtension : KarooExtension("notifybridge", BuildConfig.VERSION_NAME)
                 autoDismissMs = 10_000,
                 backgroundColor = appColor(app),
                 textColor = R.color.alert_text,
-            )) else karoo.dispatch(SystemNotification(
-                id = "notifybridge-$count",
-                header = app,
-                message = if (title.isNotEmpty()) title else app,
-                subText = text,
             ))
         }
     }

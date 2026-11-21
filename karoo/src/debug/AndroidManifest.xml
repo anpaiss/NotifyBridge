@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: sample messages for screenshots, from adb (21/11/2026) -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <receiver
+            android:name=".FakeMessageReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="com.anpaiss.notifybridge.karoo.FAKE_MESSAGE" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

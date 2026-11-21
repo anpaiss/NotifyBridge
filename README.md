@@ -24,7 +24,11 @@ Two small apps, one on the phone and one on the Karoo, talking over Bluetooth. N
 
 **Encrypted, paired once.** Bluetooth reaches anyone nearby. The first time, phone and Karoo pair with a six-digit code you compare on the two screens; from then on every message is encrypted with a key only the two of them hold, and a Karoo that is not paired receives nothing it can read.
 
-**Not riding**, a message goes to the Karoo's notification centre instead, as the Karoo's own notifications do.
+**Read them again.** Every message also goes to the Karoo's notification centre, during a ride too: a popup you closed, or one that waited too long behind another, is still there. Not riding, that is the only place it goes, as the Karoo's own notifications do.
+
+**A Messages field**, to put on any ride page: how many messages came in this ride and who sent the last one, at what time. Tap it and the last 10 open over the ride screen, newest first, each in its app's colour; a tap closes them, or 30 seconds. They are kept in memory only and cleared when the ride ends.
+
+![The Messages field under two switches, and the list a tap opens](docs/messages.png)
 
 **inReach check** (optional). If you carry a Garmin inReach paired with the phone, the Karoo can warn you 1–2 minutes after the start when the inReach is neither connected to the phone nor seen nearby: off, or with its Bluetooth off. The warning is a full red screen with a siren every 10 seconds, until you tap it (the siren stops by itself after 10 minutes).
 
@@ -69,7 +73,7 @@ The phone app reads the notifications Android shows, through the notification ac
 
 Everything after pairing is encrypted: the messages, and the answer about the link and the inReach. In clear there is only whether the Karoo is subscribed and paired.
 
-The Karoo extension looks for the phone by the Bluetooth service it advertises, connects, and checks the link every minute; when the phone goes out of range it looks again, at full speed for 2 minutes and then in low-power mode, and reconnects by itself. During a ride the message becomes our popup; otherwise a Karoo notification.
+The Karoo extension looks for the phone by the Bluetooth service it advertises, connects, and checks the link every minute; when the phone goes out of range it looks again, at full speed for 2 minutes and then in low-power mode, and reconnects by itself. Every message becomes a Karoo notification, and during a ride also our popup.
 
 ## Pairing and encryption, in detail
 
