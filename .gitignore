@@ -29,3 +29,7 @@ build/
 
 # Screenshots for README and posts, kept local
 screenshots/
+
+# Post drafts and their images, kept local
+drafts/
+reddit_images/
