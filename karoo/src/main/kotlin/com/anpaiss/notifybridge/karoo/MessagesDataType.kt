@@ -53,7 +53,7 @@ class MessagesDataType(extension: String) : DataTypeImpl(extension, TYPE_ID) {
             val last = MessageLog.all().firstOrNull()
             val count = if (config.preview) 3 else MessageLog.count
             val sub = when {
-                config.preview -> "Giulia · 14:05"
+                config.preview -> "Emma · 14:05"
                 last == null -> "none yet"
                 else -> "${last.title.ifEmpty { last.app }} · ${hhmm(last.at)}"
             }
