@@ -2,6 +2,7 @@ package com.anpaiss.notifybridge.karoo
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.pm.PackageManager
 import android.view.Gravity
 import android.content.Intent
 import android.net.Uri
@@ -22,6 +23,7 @@ class MainActivity : Activity() {
 
     companion object {
         const val INREACH_CHECK = "inreach_check"
+        private val BT_PERMISSIONS = arrayOf(android.Manifest.permission.BLUETOOTH_SCAN, android.Manifest.permission.BLUETOOTH_CONNECT)
     }
 
     private lateinit var status: TextView
@@ -29,6 +31,7 @@ class MainActivity : Activity() {
     private lateinit var pairButton: Button
     private lateinit var pairState: TextView
     private var dialog: AlertDialog? = null
+    private var askedBluetooth = false
 
     // The steps of a pairing, from the extension
     private val pairUi = object : BridgeExtension.Companion.PairUi {
@@ -144,15 +147,23 @@ class MainActivity : Activity() {
         val paired = getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("pair_key", null) != null
         why.visibility = if (paired) View.GONE else View.VISIBLE
         pairButton.text = if (paired) "PAIR AGAIN" else "PAIR WITH PHONE"
-        status.text = "Phone: ${BridgeExtension.linkState}" + (if (paired) "\nMessages encrypted: only this Karoo can read them." else "") +
+        status.text = (if (bluetoothAllowed()) "Phone: ${BridgeExtension.linkState}"
+            else "Bluetooth permission (Nearby devices): MISSING\nThe Karoo cannot find the phone: reopen NotifyBridge and allow it.") + (if (paired) "\nMessages encrypted: only this Karoo can read them." else "") +
             "\n\n" + overlayText()
     }
 
     override fun onResume() {
         super.onResume()
         BridgeExtension.pairUi = pairUi
+        // Without them the extension cannot find the phone; an install may leave them off.
+        // Once per opening: the permission dialog itself pauses and resumes us
+        if (!bluetoothAllowed() && !askedBluetooth) { askedBluetooth = true; requestPermissions(BT_PERMISSIONS, 1) }
         refresh()
     }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) = refresh()
+
+    private fun bluetoothAllowed() = BT_PERMISSIONS.all { checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
 
     private fun overlayText() =
         if (Settings.canDrawOverlays(this))
