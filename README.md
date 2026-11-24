@@ -112,6 +112,7 @@ All of them on [lagorai.bike/extensions](https://lagorai.bike/extensions/).
 
 - **Next release** (not published yet)
   - Slack, like WhatsApp: each direct message and each channel is switched on or off on its own in the phone app. A new one appears after its first message, switched off. A channel's threads go with the channel and keep its name.
+    Checked on 24/11/2026 with a Samsung Galaxy S25 Ultra and a Karoo 3, during a test ride: Slack direct messages came through as popups on the ride screen and in the Karoo's notification centre. Channels and threads not tried yet. While Slack's notifications are paused (Do Not Disturb, or a notification schedule), Slack posts no notification on the phone and nothing reaches the Karoo.
   - Karoo: the app asks for the Bluetooth permission (Nearby devices) when it is missing, and says so on its first line; without it the Karoo cannot find the phone.
 - **1.0.1** (24/11/2026): the phone starts the bridge only once the Bluetooth permissions are granted.
 - **1.0.0** (21/11/2026): first release.
