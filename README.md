@@ -7,7 +7,7 @@
 
 # NotifyBridge
 
-Your phone's messages and calls on the Hammerhead Karoo, in large type at the bottom of the ride screen, and only the ones you choose: app by app, and on WhatsApp person by person and group by group.
+Your phone's messages and calls on the Hammerhead Karoo, in large type at the bottom of the ride screen, and only the ones you choose: app by app, and on WhatsApp and Slack person by person, group by group and channel by channel.
 
 Two small apps, one on the phone and one on the Karoo, talking over Bluetooth. No account, no internet, no server in between. Paired once with a code, so every message travels encrypted and only your Karoo can read it.
 
@@ -25,6 +25,7 @@ Two small apps, one on the phone and one on the Karoo, talking over Bluetooth. N
 
 - apps: each app appears in the list the first time it posts a notification, switched off. WhatsApp, SMS and calls are on from the start;
 - WhatsApp: each person and each group appears under it after their first message, switched off. Switch on your family, leave the busy groups off;
+- Slack: the same, with each direct message and each channel; a channel's threads go with the channel. Slack decides what makes a notification (its own settings: all messages, mentions only, keywords), NotifyBridge then picks among them;
 - calls: a switch of their own, whatever app rings.
 
 **Encrypted, paired once.** Bluetooth reaches anyone nearby. The first time, phone and Karoo pair with a six-digit code you compare on the two screens; from then on every message is encrypted with a key only the two of them hold, and a Karoo that is not paired receives nothing it can read.

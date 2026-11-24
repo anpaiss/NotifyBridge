@@ -19,7 +19,7 @@ class Listener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val n = sbn.notification
-        if (sbn.packageName == SLACK) slackShape(sbn)
+        if (sbn.packageName == SLACK && debuggable) slackShape(sbn)
         val call =n.category == Notification.CATEGORY_CALL && sbn.isOngoing
         if (sbn.packageName == packageName || (sbn.isOngoing && !call)) return
         if (call && !callsSent.add(sbn.key)) return
@@ -33,7 +33,7 @@ class Listener : NotificationListenerService() {
         val chatApp = !call && sbn.packageName in Filter.CHAT_APPS
         val chat = if (chatApp) n.shortcutId?.let { "${sbn.packageName}|$it" } else null
         if (chat != null) filter.sawChat(chat,
-            n.extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString() ?: title,
+            chatName(sbn.packageName, n.extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)?.toString() ?: title),
             n.extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION))
         val blocked = if (call) !filter.calls else !filter.allowed(sbn.packageName) || (chatApp && (chat == null || !filter.chatAllowed(chat)))
         if (blocked) { FileLog.i("blocked: ${chat ?: sbn.packageName}${if (chatApp && chat == null) " (no chat: $title)" else ""}"); return }
@@ -43,7 +43,14 @@ class Listener : NotificationListenerService() {
         BridgeService.send(app, title, text, call)
     }
 
-    // Diagnostics, Slack only: the shape of each notification, never its words. Whether a chat id
+    // Slack: a channel's thread has the channel's id but a title of its own, "Thread in #name" in the phone's
+    // language: keep "#name", so the chat's name does not change with each message (a channel name has no '#')
+    private fun chatName(pkg: String, name: String) =
+        if (pkg == SLACK && '#' in name) name.substring(name.lastIndexOf('#')) else name
+
+    private val debuggable by lazy { applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE != 0 }
+
+    // Diagnostics, debug builds and Slack only: the shape of each notification, never its words. Whether a chat id
     // (shortcutId) comes and stays the same per channel/DM decides if Slack can join Filter.CHAT_APPS;
     // key, postTime and the alert-once flag show whether Slack reposts the same conversation
     private fun slackShape(sbn: StatusBarNotification) {
