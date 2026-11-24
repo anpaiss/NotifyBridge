@@ -19,7 +19,8 @@ class Listener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         val n = sbn.notification
-        val call = n.category == Notification.CATEGORY_CALL && sbn.isOngoing
+        if (sbn.packageName == SLACK) slackShape(sbn)
+        val call =n.category == Notification.CATEGORY_CALL && sbn.isOngoing
         if (sbn.packageName == packageName || (sbn.isOngoing && !call)) return
         if (call && !callsSent.add(sbn.key)) return
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
@@ -41,6 +42,35 @@ class Listener : NotificationListenerService() {
         FileLog.i("notification from ${sbn.packageName}${if (call) " (call)" else ""}")
         BridgeService.send(app, title, text, call)
     }
+
+    // Diagnostics, Slack only: the shape of each notification, never its words. Whether a chat id
+    // (shortcutId) comes and stays the same per channel/DM decides if Slack can join Filter.CHAT_APPS;
+    // key, postTime and the alert-once flag show whether Slack reposts the same conversation
+    private fun slackShape(sbn: StatusBarNotification) {
+        val n = sbn.notification
+        val x = n.extras
+        fun has(k: String) = if (x.getCharSequence(k).isNullOrEmpty()) "-" else "y"
+        // The typed getters need API 33, minSdk is 31
+        @Suppress("DEPRECATION") val msgs = x.getParcelableArray(Notification.EXTRA_MESSAGES)
+        val last = msgs?.lastOrNull() as? android.os.Bundle
+        @Suppress("DEPRECATION") val person = last?.getParcelable<android.app.Person>("sender_person")
+        val sender = when {
+            last == null -> "none"
+            person != null -> "person"
+            !last.getCharSequence("sender").isNullOrEmpty() -> "name"
+            else -> "empty"
+        }
+        FileLog.i("slack shape: key=${sbn.key} id=${sbn.id} tag=${sbn.tag != null} post=${sbn.postTime}" +
+            " ongoing=${sbn.isOngoing} summary=${n.flags and Notification.FLAG_GROUP_SUMMARY != 0}" +
+            " alertOnce=${n.flags and Notification.FLAG_ONLY_ALERT_ONCE != 0}" +
+            " category=${n.category} channel=${n.channelId} group=${n.group} shortcut=${n.shortcutId}" +
+            " style=${x.getString(Notification.EXTRA_TEMPLATE)?.substringAfterLast('$')}" +
+            " title=${has(Notification.EXTRA_TITLE)} text=${has(Notification.EXTRA_TEXT)}" +
+            " convTitle=${has(Notification.EXTRA_CONVERSATION_TITLE)} isGroup=${x.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION)}" +
+            " messages=${msgs?.size ?: 0} lastSender=$sender")
+    }
+
+    private companion object { const val SLACK = "com.Slack" }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         callsSent.remove(sbn.key)
