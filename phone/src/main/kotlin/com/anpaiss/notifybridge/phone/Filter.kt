@@ -17,8 +17,9 @@ class Filter(ctx: Context) {
             "com.samsung.android.messaging",        // Samsung Messages
             "com.google.android.apps.messaging",    // Google Messages
         )
-        /** Apps whose notifications carry a fixed chat id and a group flag, checked on the phone. */
-        val CHAT_APPS = setOf("com.whatsapp")
+        /** Apps whose notifications carry a fixed chat id and a group flag, checked on the phone.
+         *  Slack: the id of the DM (D…) or channel (C…), a channel's name as conversation title. */
+        val CHAT_APPS = setOf("com.whatsapp", "com.Slack")
     }
 
     private val prefs = ctx.getSharedPreferences("filter", Context.MODE_PRIVATE)

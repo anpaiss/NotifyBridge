@@ -28,7 +28,7 @@ class Listener : NotificationListenerService() {
         val text = n.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty()
         if (title.isEmpty() && text.isEmpty()) return
         if (!call) filter.saw(sbn.packageName)
-        // WhatsApp: the person or group, by the fixed id of the chat; a group's name is the conversation title.
+        // WhatsApp, Slack: the person, group or channel, by the fixed id of the chat; a group's name is the conversation title.
         // Only the chosen chats pass: a notification with no chat id is not one of them
         val chatApp = !call && sbn.packageName in Filter.CHAT_APPS
         val chat = if (chatApp) n.shortcutId?.let { "${sbn.packageName}|$it" } else null
