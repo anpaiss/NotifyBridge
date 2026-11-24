@@ -1,5 +1,6 @@
 package com.anpaiss.notifybridge.phone
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
@@ -22,6 +23,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Handler
 import android.os.IBinder
@@ -58,7 +60,15 @@ class BridgeService : Service() {
         @Volatile var instance: BridgeService? = null
         @Volatile var status: String = "stopped"
 
-        fun start(ctx: Context) = ctx.startForegroundService(Intent(ctx, BridgeService::class.java))
+        /** Both Bluetooth permissions granted: without them Android kills the app as the service goes foreground. */
+        fun canStart(ctx: Context) = listOf(Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT)
+            .all { ctx.checkSelfPermission(it) == PackageManager.PERMISSION_GRANTED }
+
+        /** Starts the bridge, unless the Bluetooth permissions are missing (a fresh install: "Start bridge" asks them). */
+        fun start(ctx: Context) {
+            if (!canStart(ctx)) { FileLog.w("Bluetooth permissions missing: bridge not started"); status = "Bluetooth permission missing"; return }
+            ctx.startForegroundService(Intent(ctx, BridgeService::class.java))
+        }
 
         fun send(app: String, title: String, text: String, call: Boolean = false) {
             val s = instance ?: run { FileLog.w("not running: '$app' dropped"); return }

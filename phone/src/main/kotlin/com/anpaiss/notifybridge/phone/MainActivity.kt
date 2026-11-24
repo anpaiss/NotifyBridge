@@ -52,10 +52,11 @@ class MainActivity : AppCompatActivity() {
                 .setPositiveButton("Pair again") { _, _ -> open() }
                 .setNegativeButton("Cancel", null).show()
         })
+        // Already granted: start now; otherwise once the user answers (onRequestPermissionsResult)
         col.addView(button("Start bridge") {
-            requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT,
+            if (BridgeService.canStart(this)) BridgeService.start(this)
+            else requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_ADVERTISE, Manifest.permission.BLUETOOTH_CONNECT,
                 Manifest.permission.POST_NOTIFICATIONS), 1)
-            BridgeService.start(this)
         })
         col.addView(button("Notification access") { startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) })
         // Android 13+ greys out notification access for an app installed from an APK until it is allowed here
@@ -95,6 +96,11 @@ class MainActivity : AppCompatActivity() {
             pairing?.findViewById<TextView>(android.R.id.message)?.textSize = 22f
         }
         refresh()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1) { BridgeService.start(this); refresh() }
     }
 
     override fun onPause() {
