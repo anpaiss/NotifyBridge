@@ -57,6 +57,8 @@ Once installed it appears in the Karoo **Extensions** library, and the Karoo che
 **On the phone** (Android 12 or newer)
 
 1. Download `NotifyBridge-phone.apk` from the same release and open it to install it.
+
+   Google Play Protect may warn about it, or block the install. This is normal for an app installed from a file that asks for notification access: NotifyBridge needs it to read the messages it sends to the Karoo, and harmful apps ask for the same permission, so Play Protect is wary of all of them. The warning is about that permission, not about anything found in the app: no antivirus engine on VirusTotal flags it, and the code is open here (see [Is it safe?](#is-it-safe)).
 2. Open **NotifyBridge**, tap **Start bridge** and allow **Nearby devices** (Bluetooth) and notifications.
 3. Tap **Notification access** and switch NotifyBridge on.
 
