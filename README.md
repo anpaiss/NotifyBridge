@@ -108,6 +108,14 @@ All of them on [lagorai.bike/extensions](https://lagorai.bike/extensions/).
   - `NotifyBridge-phone.apk`: `ad00571a477eb6fb873763fc594fba4817a05285913cec971a3450734acf26bc`
 - The APKs are built by GitHub Actions from the tagged source, with a signed provenance. Check it with `gh attestation verify NotifyBridge.apk -R anpaiss/NotifyBridge` (and the same for `NotifyBridge-phone.apk`).
 
+## Changelog
+
+- **Next release** (not published yet)
+  - Slack, like WhatsApp: each direct message and each channel is switched on or off on its own in the phone app. A new one appears after its first message, switched off. A channel's threads go with the channel and keep its name.
+  - Karoo: the app asks for the Bluetooth permission (Nearby devices) when it is missing, and says so on its first line; without it the Karoo cannot find the phone.
+- **1.0.1** (24/11/2026): the phone starts the bridge only once the Bluetooth permissions are granted.
+- **1.0.0** (21/11/2026): first release.
+
 ## Support
 
 NotifyBridge is free and open source, and will stay that way. If it helped, you can [buy me a coffee on Ko-fi](https://ko-fi.com/anpaiss): it pays for the small things, a development board, a 3D-printed case, a few hours of testing on the trails.
