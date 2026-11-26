@@ -104,7 +104,7 @@ All of them on [lagorai.bike/extensions](https://lagorai.bike/extensions/).
 ## Is it safe?
 
 - The code is all here, open source.
-- Both APKs of each release are checked on VirusTotal, and the release notes link the reports. Version 1.1.0: no engine flags [NotifyBridge.apk](https://www.virustotal.com/gui/file/c97928aa01dbbc8f46cf5d4192c8331b06d2759fe4805ccc08748ac23b5c489b) or [NotifyBridge-phone.apk](https://www.virustotal.com/gui/file/2a1cd299ff87268e863891bab7c1fe550014ec979bd8df90d3a99096232bc85f).
+- Both APKs of each release are checked on VirusTotal, and the release notes link the reports. Version 1.1.0: none of the 66 engines flag [NotifyBridge.apk](https://www.virustotal.com/gui/file/c97928aa01dbbc8f46cf5d4192c8331b06d2759fe4805ccc08748ac23b5c489b) or [NotifyBridge-phone.apk](https://www.virustotal.com/gui/file/2a1cd299ff87268e863891bab7c1fe550014ec979bd8df90d3a99096232bc85f).
 - Compare the SHA-256 in the release notes with the files you downloaded (`certutil -hashfile NotifyBridge.apk SHA256` on Windows, `sha256sum NotifyBridge.apk` elsewhere). Version 1.1.0:
   - `NotifyBridge.apk`: `c97928aa01dbbc8f46cf5d4192c8331b06d2759fe4805ccc08748ac23b5c489b`
   - `NotifyBridge-phone.apk`: `2a1cd299ff87268e863891bab7c1fe550014ec979bd8df90d3a99096232bc85f`
