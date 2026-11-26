@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         val paired = PairStore(this).count
         why.visibility = if (paired == 0) android.view.View.VISIBLE else android.view.View.GONE
         status.text = "Bridge: ${BridgeService.status}\n" +
-            (if (paired > 0) "Paired Karoo: $paired · messages encrypted\n" else "No Karoo paired yet: tap Pair a Karoo\n") +
+            (if (paired > 0) "Paired with a Karoo ✓ messages encrypted\n" else "No Karoo paired yet: tap Pair a Karoo\n") +
             if (access) "Notification access: granted ✓"
         else "Notification access: MISSING. Tap Notification access and turn NotifyBridge on. If its switch is greyed " +
             "out (\"Restricted setting\"): App info, the ⋮ menu at the top right, Allow restricted settings, then try again."
