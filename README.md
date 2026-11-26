@@ -17,7 +17,7 @@ Two small apps, one on the phone and one on the Karoo, talking over Bluetooth. N
 
 **On the ride screen.** Each message arrives as a popup at the bottom of the screen, where it does not cover the numbers at the top: the sender and the text in large bold type, up to four lines, the app's name below. It takes the app's colour (green WhatsApp, blue Telegram, orange for the others), plays two short beeps, and goes away after 10 seconds or with a tap. A call has a ring of its own, three rounds of two alternating tones, unlike any Karoo sound.
 
-**Your choice of text size.** Small, Medium or Large, in the Karoo app. **TEST POPUP** shows a sample message in the size you chose, without waiting for a real one.
+**Your choice of text size.** Small, Medium or Large, in the Karoo app. **Test popup** shows a sample message in the size you chose, without waiting for a real one.
 
 **One popup at a time.** If a popup of my other extensions is on screen, the message waits for it, 30 seconds at most.
 
@@ -50,7 +50,7 @@ You need both apps: the phone app sends, the Karoo extension shows.
 
 1. Download `NotifyBridge.apk` from the latest release and sideload it, for example from the Hammerhead companion app, or with `adb install -r NotifyBridge.apk`.
 2. Open **NotifyBridge** from the Karoo's extensions and tap **Allow popups over the ride screen**. Without it, messages use the Karoo's own alert at the top of the screen.
-3. Choose the text size and tap **TEST POPUP** to see it.
+3. Choose the text size and tap **Test popup** to see it.
 
 Once installed it appears in the Karoo **Extensions** library, and the Karoo checks there for a newer release.
 
@@ -67,7 +67,7 @@ Once installed it appears in the Karoo **Extensions** library, and the Karoo che
 **Pair them, once**
 
 1. On the phone tap **Pair a Karoo**. You then have 2 minutes.
-2. On the Karoo open **NotifyBridge** and tap **PAIR WITH PHONE**.
+2. On the Karoo open **NotifyBridge** and tap **Pair with phone**.
 3. Both screens show a six-digit code. If it is the same, tap **Same code: pair** on both. The phone then says "Paired Karoo: 1", the Karoo "Messages encrypted".
 4. Tap **Send test** on the phone: during a ride it appears as the popup, otherwise in the Karoo's notification centre.
 
@@ -112,7 +112,7 @@ All of them on [lagorai.bike/extensions](https://lagorai.bike/extensions/).
 
 ## Changelog
 
-- **Next release** (not published yet)
+- **1.1.0** (26/11/2026)
   - Slack, like WhatsApp: each direct message and each channel is switched on or off on its own in the phone app. A new one appears after its first message, switched off. A channel's threads go with the channel and keep its name.
     Checked on 24/11/2026 with a Samsung Galaxy S25 Ultra and a Karoo 3, during a test ride: Slack direct messages came through as popups on the ride screen and in the Karoo's notification centre. Channels and threads not tried yet. While Slack's notifications are paused (Do Not Disturb, or a notification schedule), Slack posts no notification on the phone and nothing reaches the Karoo.
   - Karoo: the app asks for the Bluetooth permission (Nearby devices) when it is missing, and says so on its first line; without it the Karoo cannot find the phone.
