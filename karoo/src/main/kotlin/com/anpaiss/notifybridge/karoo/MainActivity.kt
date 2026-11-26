@@ -53,6 +53,9 @@ class MainActivity : Activity() {
         override fun done(ok: Boolean, message: String) {
             dialog?.dismiss(); dialog = null
             pairState.text = message
+            // A failure stays on screen until OK: the line under the button went unseen
+            if (!ok) dialog = AlertDialog.Builder(this@MainActivity).setTitle("Not paired")
+                .setMessage(message).setPositiveButton("OK", null).show()
             refresh()
         }
     }
