@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The settings screen and its dialogs: the extensions' dark page with NotifyBridge's orange (Ui.kt) -->
+    <style name="Theme.NotifyBridge" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">#0F1115</item>
+        <item name="android:statusBarColor">#0F1115</item>
+        <item name="android:colorAccent">#FF5823</item>
+        <item name="android:colorBackground">#1C1F26</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#C9CCD3</item>
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+</resources>

@@ -13,6 +13,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
+import com.anpaiss.notifybridge.phone.Ui.styled
 
 /** Start the bridge, open the notification access settings, send a test, and choose what goes to the Karoo. */
 class MainActivity : AppCompatActivity() {
@@ -27,22 +28,22 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         filter = Filter(this)
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(48, 96, 48, 48) }
-        status = TextView(this).apply { textSize = 18f }
-        fun button(label: String, action: () -> Unit) = Button(this).apply { text = label; setOnClickListener { action(); refresh() } }
+        status = Ui.text(this)
+        fun button(label: String, primary: Boolean = false, action: () -> Unit) =
+            Ui.button(this, label, primary).apply { setOnClickListener { action(); refresh() } }
+        col.addView(Ui.text(this, "NotifyBridge", 28f).apply { typeface = Ui.MEDIUM })
+        col.addView(Ui.heading(this, "Bridge"))
         col.addView(status)
         // Why pairing: shown until a Karoo is paired
-        why = TextView(this).apply {
-            textSize = 15f; setPadding(24, 16, 24, 16); setBackgroundColor(0x22FF5823)
-            text = "Why pair? Bluetooth reaches anyone nearby. Pairing gives this phone and your Karoo a secret key " +
-                "of their own: every message travels encrypted, and only your Karoo can read it."
-        }
+        why = Ui.panel(this, "Why pair? Bluetooth reaches anyone nearby. Pairing gives this phone and your Karoo a secret key " +
+            "of their own: every message travels encrypted, and only your Karoo can read it.")
         col.addView(why)
-        col.addView(button("Pair a Karoo") {
+        col.addView(button("Pair a Karoo", primary = true) {
             val s = BridgeService.instance ?: run { status.text = "Tap Start bridge first"; return@button }
             fun open() {
                 s.startPairing()
                 pairing = AlertDialog.Builder(this).setTitle("Pairing")
-                    .setMessage("On the Karoo, open NotifyBridge and tap PAIR WITH PHONE (within 2 minutes).")
+                    .setMessage("On the Karoo, open NotifyBridge and tap Pair with phone (within 2 minutes).")
                     .setNegativeButton("Cancel", null).show()
             }
             // Already paired: a tap by mistake must not start a new pairing; the old key stays until a new one succeeds
@@ -71,11 +72,9 @@ class MainActivity : AppCompatActivity() {
                 BridgeService.instance?.forgetAll(); refresh()
             }
         })
-        col.addView(TextView(this).apply {
-            textSize = 18f
-            setPadding(0, 48, 0, 8)
-            text = "Sent to the Karoo\nAn app, and on WhatsApp or Slack a person, group or channel, appears here after its first message, switched off."
-        })
+        col.addView(Ui.heading(this, "Sent to the Karoo"))
+        col.addView(Ui.text(this, "An app, and on WhatsApp or Slack a person, group or channel, appears here after its " +
+            "first message, switched off.", 15f, Ui.MUTED))
         apps = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         col.addView(apps)
         setContentView(ScrollView(this).apply { addView(col) })
@@ -143,23 +142,23 @@ class MainActivity : AppCompatActivity() {
         else "Notification access: MISSING. Tap Notification access and turn NotifyBridge on. If its switch is greyed " +
             "out (\"Restricted setting\"): App info, the ⋮ menu at the top right, Allow restricted settings, then try again."
         apps.removeAllViews()
-        apps.addView(Switch(this).apply {
-            text = "Calls"; textSize = 18f; isChecked = filter.calls
+        apps.addView(Switch(this).styled().apply {
+            text = "Calls"; isChecked = filter.calls
             setOnCheckedChangeListener { _, on -> filter.calls = on }
         })
         // Apps by name; the ones not installed (a default SMS app of another brand) are left out
         filter.seen.mapNotNull { pkg ->
             runCatching { pkg to packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrNull()
         }.sortedBy { it.second.lowercase() }.forEach { (pkg, label) ->
-            apps.addView(Switch(this).apply {
-                text = label; textSize = 18f; isChecked = filter.allowed(pkg)
+            apps.addView(Switch(this).styled().apply {
+                text = label; isChecked = filter.allowed(pkg)
                 setOnCheckedChangeListener { _, on -> filter.setAllowed(pkg, on); refresh() }
             })
             // The people and groups of WhatsApp and Slack, indented under it while the app is on
             if (filter.allowed(pkg)) filter.chats(pkg).sortedBy { it.name.lowercase() }.forEach { c ->
-                apps.addView(Switch(this).apply {
+                apps.addView(Switch(this).styled(15f).apply {
                     text = if (c.group) "${c.name} · group" else c.name
-                    textSize = 16f; setPadding(64, 0, 0, 0); isChecked = filter.chatAllowed(c.key)
+                    setTextColor(Ui.MUTED); setPadding(64, 0, 0, 0); isChecked = filter.chatAllowed(c.key)
                     setOnCheckedChangeListener { _, on -> filter.setChatAllowed(c.key, on) }
                 })
             }

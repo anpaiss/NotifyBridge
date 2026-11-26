@@ -117,6 +117,7 @@ All of them on [lagorai.bike/extensions](https://lagorai.bike/extensions/).
     Checked on 24/11/2026 with a Samsung Galaxy S25 Ultra and a Karoo 3, during a test ride: Slack direct messages came through as popups on the ride screen and in the Karoo's notification centre. Channels and threads not tried yet. While Slack's notifications are paused (Do Not Disturb, or a notification schedule), Slack posts no notification on the phone and nothing reaches the Karoo.
   - Karoo: the app asks for the Bluetooth permission (Nearby devices) when it is missing, and says so on its first line; without it the Karoo cannot find the phone.
   - Karoo: when a pairing does not complete (for example the phone was not on **Pair a Karoo**), the reason stays on screen until you tap OK.
+  - Both apps in the extensions' colours: dark page, NotifyBridge orange for the main button and the switches, one font throughout.
 - **1.0.1** (24/11/2026): the phone starts the bridge only once the Bluetooth permissions are granted.
 - **1.0.0** (21/11/2026): first release.
 

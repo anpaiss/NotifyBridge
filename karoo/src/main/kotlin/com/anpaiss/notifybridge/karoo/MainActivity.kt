@@ -17,6 +17,7 @@ import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.view.View
 import android.widget.TextView
+import com.anpaiss.notifybridge.karoo.Ui.styled
 
 /** The overlay permission that lets the popup sit at the bottom of the ride screen, and the inReach check. */
 class MainActivity : Activity() {
@@ -27,6 +28,7 @@ class MainActivity : Activity() {
     }
 
     private lateinit var status: TextView
+    private lateinit var overlayState: TextView
     private lateinit var why: TextView
     private lateinit var pairButton: Button
     private lateinit var pairState: TextView
@@ -61,9 +63,9 @@ class MainActivity : Activity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        status = TextView(this).apply { textSize = 18f }
-        val grant = Button(this).apply {
-            text = "Allow popups over the ride screen"
+        status = Ui.text(this)
+        overlayState = Ui.text(this)
+        val grant = Ui.button(this, "Allow popups over the ride screen").apply {
             setOnClickListener {
                 startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
             }
@@ -73,14 +75,14 @@ class MainActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             val pad = (16 * resources.displayMetrics.density).toInt()
             setPadding(pad, pad, pad, pad)
+            addView(Ui.text(this@MainActivity, "NotifyBridge", 26f).apply { typeface = Ui.MEDIUM })
+            addView(Ui.heading(this@MainActivity, "Phone"))
             addView(status)
             // Pairing with the phone: why, and the button; the why goes away once paired
-            why = TextView(this@MainActivity).apply {
-                textSize = 15f; setPadding(pad / 2, pad / 2, pad / 2, pad / 2); setBackgroundColor(0xFFFFFFFF.toInt())
-                text = "Pair once with your phone: your messages then travel encrypted, and no other device nearby can read them."
-            }
+            why = Ui.panel(this@MainActivity,
+                "Pair once with your phone: your messages then travel encrypted, and no other device nearby can read them.")
             addView(why)
-            pairButton = Button(this@MainActivity).apply {
+            pairButton = Ui.button(this@MainActivity, "", primary = true).apply {
                 setOnClickListener {
                     val ext = BridgeExtension.instance ?: run { pairState.text = "NotifyBridge is not running: restart the Karoo"; return@setOnClickListener }
                     fun start() {
@@ -101,12 +103,13 @@ class MainActivity : Activity() {
                 }
             }
             addView(pairButton)
-            pairState = TextView(this@MainActivity).apply { textSize = 15f }
+            pairState = Ui.text(this@MainActivity, size = 15f, color = Ui.MUTED)
             addView(pairState)
+            addView(Ui.heading(this@MainActivity, "Popup"))
+            addView(overlayState)
             addView(grant)
             // The real popup with a made-up message, as every extension with a popup has; no sound, nothing is sent
-            addView(Button(this@MainActivity).apply {
-                text = "TEST POPUP (shows in 3 s)"
+            addView(Ui.button(this@MainActivity, "Test popup (shows in 3 s)").apply {
                 setOnClickListener {
                     if (!Settings.canDrawOverlays(this@MainActivity)) return@setOnClickListener
                     val popup = MessagePopup(applicationContext)
@@ -117,22 +120,22 @@ class MainActivity : Activity() {
                 }
             })
             // Text size of the message popup; TEST POPUP above shows the one chosen
-            addView(TextView(this@MainActivity).apply { text = "Text size of the messages"; textSize = 16f; setPadding(0, pad, 0, 0) })
+            addView(Ui.heading(this@MainActivity, "Message text size"))
             val prefs = getSharedPreferences("bridge", Context.MODE_PRIVATE)
             addView(RadioGroup(this@MainActivity).apply {
                 orientation = RadioGroup.VERTICAL   // one per row: on one row "Medium" broke in two on the Karoo
                 val chosen = prefs.getString(MessagePopup.TEXT_SIZE, MessagePopup.DEFAULT_TEXT_SIZE)
                 MessagePopup.TEXT_SIZES.keys.forEach { name ->
-                    addView(RadioButton(this@MainActivity).apply {
-                        id = View.generateViewId(); text = name; textSize = 16f; isChecked = name == chosen
+                    addView(RadioButton(this@MainActivity).styled().apply {
+                        id = View.generateViewId(); text = name; isChecked = name == chosen
                         setOnClickListener { prefs.edit().putString(MessagePopup.TEXT_SIZE, name).apply() }
                     })
                 }
             })
-            addView(CheckBox(this@MainActivity).apply {
-                text = "inReach check: a notice 1–2 min after the start when your Garmin inReach is neither " +
+            addView(Ui.heading(this@MainActivity, "inReach check"))
+            addView(CheckBox(this@MainActivity).styled().apply {
+                text = "A notice 1–2 min after the start when your Garmin inReach is neither " +
                     "connected to the phone nor seen by the Karoo"
-                textSize = 16f
                 val prefs = getSharedPreferences("bridge", Context.MODE_PRIVATE)
                 isChecked = prefs.getBoolean(INREACH_CHECK, false)
                 setOnCheckedChangeListener { _, on -> prefs.edit().putBoolean(INREACH_CHECK, on).apply() }
@@ -149,10 +152,10 @@ class MainActivity : Activity() {
     private fun refresh() {
         val paired = getSharedPreferences("bridge", Context.MODE_PRIVATE).getString("pair_key", null) != null
         why.visibility = if (paired) View.GONE else View.VISIBLE
-        pairButton.text = if (paired) "PAIR AGAIN" else "PAIR WITH PHONE"
-        status.text = (if (bluetoothAllowed()) "Phone: ${BridgeExtension.linkState}"
-            else "Bluetooth permission (Nearby devices): MISSING\nThe Karoo cannot find the phone: reopen NotifyBridge and allow it.") + (if (paired) "\nMessages encrypted: only this Karoo can read them." else "") +
-            "\n\n" + overlayText()
+        pairButton.text = if (paired) "Pair again" else "Pair with phone"
+        status.text = (if (bluetoothAllowed()) BridgeExtension.linkState.replaceFirstChar { it.uppercase() }
+            else "Bluetooth permission (Nearby devices): MISSING\nThe Karoo cannot find the phone: reopen NotifyBridge and allow it.") + (if (paired) "\nMessages encrypted: only this Karoo can read them." else "")
+        overlayState.text = overlayText()
     }
 
     override fun onResume() {
@@ -170,7 +173,7 @@ class MainActivity : Activity() {
 
     private fun overlayText() =
         if (Settings.canDrawOverlays(this))
-            "Overlay permission: granted ✓\nMessages appear at the bottom of the ride screen."
+            "Allowed ✓ Messages appear at the bottom of the ride screen."
         else
-            "Overlay permission: MISSING\nMessages use the Karoo's own alert at the top."
+            "Not allowed: messages use the Karoo's own alert at the top."
 }
