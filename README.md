@@ -104,10 +104,10 @@ All of them on [lagorai.bike/extensions](https://lagorai.bike/extensions/).
 ## Is it safe?
 
 - The code is all here, open source.
-- Both APKs of each release are checked on VirusTotal, and the release notes link the reports. Version 1.0.1: none of the 65 engines flag [NotifyBridge.apk](https://www.virustotal.com/gui/file/22146df642170ee617ab7aa5d4e25ebb93c7e78e6f120f9058f6a9488443a1b4) or [NotifyBridge-phone.apk](https://www.virustotal.com/gui/file/ad00571a477eb6fb873763fc594fba4817a05285913cec971a3450734acf26bc).
-- Compare the SHA-256 in the release notes with the files you downloaded (`certutil -hashfile NotifyBridge.apk SHA256` on Windows, `sha256sum NotifyBridge.apk` elsewhere). Version 1.0.1:
-  - `NotifyBridge.apk`: `22146df642170ee617ab7aa5d4e25ebb93c7e78e6f120f9058f6a9488443a1b4`
-  - `NotifyBridge-phone.apk`: `ad00571a477eb6fb873763fc594fba4817a05285913cec971a3450734acf26bc`
+- Both APKs of each release are checked on VirusTotal, and the release notes link the reports. Version 1.1.0: no engine flags [NotifyBridge.apk](https://www.virustotal.com/gui/file/c97928aa01dbbc8f46cf5d4192c8331b06d2759fe4805ccc08748ac23b5c489b) or [NotifyBridge-phone.apk](https://www.virustotal.com/gui/file/2a1cd299ff87268e863891bab7c1fe550014ec979bd8df90d3a99096232bc85f).
+- Compare the SHA-256 in the release notes with the files you downloaded (`certutil -hashfile NotifyBridge.apk SHA256` on Windows, `sha256sum NotifyBridge.apk` elsewhere). Version 1.1.0:
+  - `NotifyBridge.apk`: `c97928aa01dbbc8f46cf5d4192c8331b06d2759fe4805ccc08748ac23b5c489b`
+  - `NotifyBridge-phone.apk`: `2a1cd299ff87268e863891bab7c1fe550014ec979bd8df90d3a99096232bc85f`
 - The APKs are built by GitHub Actions from the tagged source, with a signed provenance. Check it with `gh attestation verify NotifyBridge.apk -R anpaiss/NotifyBridge` (and the same for `NotifyBridge-phone.apk`).
 
 ## Changelog
