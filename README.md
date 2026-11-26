@@ -118,6 +118,8 @@ All of them on [lagorai.bike/extensions](https://lagorai.bike/extensions/).
   - Karoo: the app asks for the Bluetooth permission (Nearby devices) when it is missing, and says so on its first line; without it the Karoo cannot find the phone.
   - Karoo: when a pairing does not complete (for example the phone was not on **Pair a Karoo**), the reason stays on screen until you tap OK.
   - Both apps in the extensions' colours: dark page, NotifyBridge orange for the main button and the switches, one font throughout.
+
+    These two checked on 26/11/2026 on the same Karoo 3 and S25 Ultra: a pairing tried with the phone not ready showed its reason until OK, then pairing and a test message went through.
 - **1.0.1** (24/11/2026): the phone starts the bridge only once the Bluetooth permissions are granted.
 - **1.0.0** (21/11/2026): first release.
 
